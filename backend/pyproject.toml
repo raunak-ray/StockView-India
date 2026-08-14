@@ -12,6 +12,7 @@ dependencies = [
     "alembic",
     "psycopg[binary]",
     "redis",
+    "aiosqlite",
     "arq",
     "apscheduler",
     "httpx",
