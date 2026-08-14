@@ -1,0 +1,25 @@
+# Planning docs and legacy Streamlit app (superseded by plan/01 & plan/02)
+plan/
+/app.py
+
+# Python / backend
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Node / frontend
+node_modules/
+.next/
+out/
+next-env.d.ts
+*.tsbuildinfo
+
+# Misc
+.DS_Store
+*.log
