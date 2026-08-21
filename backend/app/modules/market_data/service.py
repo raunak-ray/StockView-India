@@ -33,12 +33,14 @@ INDICES: dict[str, str] = {
 }
 
 # NSE large-cap universe for the movers panel (parity app.py:1167-1173).
+# Maintenance note (2026-08): TATAMOTORS.NS delisted after the Tata Motors
+# demerger -> TMPV.NS; ZOMATO.NS renamed -> ETERNAL.NS.
 MOVERS_TICKERS: list[str] = [
     "RELIANCE.NS", "TCS.NS", "INFY.NS", "HDFCBANK.NS", "WIPRO.NS",
-    "SBIN.NS", "ICICIBANK.NS", "BAJFINANCE.NS", "TATAMOTORS.NS",
+    "SBIN.NS", "ICICIBANK.NS", "BAJFINANCE.NS", "TMPV.NS",
     "ADANIPORTS.NS", "MARUTI.NS", "HINDUNILVR.NS", "ASIANPAINT.NS",
     "AXISBANK.NS", "KOTAKBANK.NS", "ONGC.NS", "LT.NS", "ITC.NS",
-    "SUNPHARMA.NS", "ZOMATO.NS",
+    "SUNPHARMA.NS", "ETERNAL.NS",
 ]
 
 
