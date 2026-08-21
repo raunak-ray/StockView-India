@@ -1,0 +1,23 @@
+# StockView India — local infrastructure.
+# Only the services needed for development run here; the app itself
+# (api/worker) still runs on the host via uvicorn/arq.
+#
+#   docker compose up -d redis
+#
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: stockview-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - stockview-redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  stockview-redis-data:
