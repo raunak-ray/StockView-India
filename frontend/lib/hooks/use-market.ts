@@ -4,9 +4,12 @@ import { useQuery } from "@tanstack/react-query";
 
 import {
   getGainersLosers,
+  getHistory,
   getInfo,
   getMarketSummary,
   getQuote,
+  type Interval,
+  type Period,
 } from "@/lib/api/market";
 
 /** Live quote polling — parity with the auto-refresh toggle (app.py:1021).
@@ -50,5 +53,19 @@ export function useGainersLosers(intervalSec: number = 60) {
     queryFn: getGainersLosers,
     refetchInterval: intervalSec * 1000, // backend TTL parity: 60s
     staleTime: 55 * 1000,
+  });
+}
+
+export function useHistory(symbol: string, interval: Interval, period: Period) {
+  return useQuery({
+    queryKey: ["market", "history", symbol, interval, period],
+    queryFn: () => getHistory(symbol, interval, period),
+    enabled: symbol.length > 0,
+    staleTime: 5 * 60 * 1000, // backend TTL parity: history cached 300s
+    retry: (failureCount, error) => {
+      const status = (error as { status?: number }).status;
+      if (status === 404 || status === 401) return false;
+      return failureCount < 2;
+    },
   });
 }

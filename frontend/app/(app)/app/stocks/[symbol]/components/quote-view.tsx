@@ -39,6 +39,8 @@ import {
   type RefreshInterval,
 } from "../constants";
 import { useDocumentTitle } from "../hooks/use-document-title";
+import { ChartSection } from "./chart-section";
+import { WatchlistStar } from "./watchlist-star";
 
 function exchangeOf(symbol: string): string {
   if (symbol.startsWith("^")) return "INDEX";
@@ -162,8 +164,10 @@ export function QuoteView({ symbol }: { symbol: string }) {
           </div>
         </div>
 
-        <div className="flex items-center gap-1 rounded-lg border border-border bg-card p-1">
-          {REFRESH_INTERVALS.map((sec) => (
+        <div className="flex items-center gap-2">
+          <WatchlistStar ticker={symbol} />
+          <div className="flex items-center gap-1 rounded-lg border border-border bg-card p-1">
+            {REFRESH_INTERVALS.map((sec) => (
             <button
               key={sec}
               type="button"
@@ -181,7 +185,10 @@ export function QuoteView({ symbol }: { symbol: string }) {
             </button>
           ))}
         </div>
+        </div>
       </motion.div>
+
+      <ChartSection symbol={symbol} />
 
       {/* Key stats */}
       <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
