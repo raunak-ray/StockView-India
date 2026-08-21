@@ -6,11 +6,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.core.db import SessionLocal, init_db
 from app.core.redis import close_redis
+from app.modules.analytics.router import router as analytics_router
 from app.modules.auth import service
 from app.modules.auth.router import router as auth_router
 from app.modules.instruments.router import router as instruments_router
 from app.modules.market_data.router import router as market_data_router
 from app.modules.portfolio.router import router as portfolio_router
+from app.modules.signals.router import router as signals_router
 
 
 @asynccontextmanager
@@ -37,6 +39,8 @@ def create_app() -> FastAPI:
     app.include_router(instruments_router, prefix=settings.api_v1_prefix)
     app.include_router(market_data_router, prefix=settings.api_v1_prefix)
     app.include_router(portfolio_router, prefix=settings.api_v1_prefix)
+    app.include_router(analytics_router, prefix=settings.api_v1_prefix)
+    app.include_router(signals_router, prefix=settings.api_v1_prefix)
 
     @app.get("/healthz")
     async def healthz() -> dict:
