@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
+import { useState } from "react";
 import {
   Activity,
   Bell,
@@ -27,7 +28,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Separator } from "@/components/ui/separator";
-import { Badge } from "@/components/ui/badge";
+import { CommandPalette } from "@/components/search/command-palette";
+import { MarketStatusChip } from "@/components/market/market-status-chip";
+import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { RequireAuth } from "@/components/auth/require-auth";
 import { useLogout, useMe } from "@/lib/hooks/use-auth";
 import { cn } from "@/lib/utils";
@@ -105,23 +108,26 @@ function Sidebar() {
 function Topbar() {
   const { data: user } = useMe();
   const logout = useLogout();
-  const router = useRouter();
+  const [paletteOpen, setPaletteOpen] = useState(false);
 
   const initials = (user?.username ?? "?").slice(0, 2).toUpperCase();
 
   return (
     <header className="sticky top-0 z-20 flex h-14 items-center gap-4 border-b border-border bg-background/80 px-4 backdrop-blur md:px-6">
-      <div className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5 text-sm text-muted-foreground md:w-80">
+      <button
+        type="button"
+        onClick={() => setPaletteOpen(true)}
+        className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground md:w-80"
+      >
         <Search className="size-4" />
-        <span className="flex-1 truncate">Search instruments… (⌘K)</span>
+        <span className="flex-1 truncate text-left">Search instruments…</span>
         <kbd className="hidden rounded border border-border px-1 text-[10px] md:block">
           ⌘K
         </kbd>
-      </div>
+      </button>
       <div className="ml-auto flex items-center gap-3">
-        <Badge variant="secondary" className="hidden sm:inline-flex">
-          Market: Open
-        </Badge>
+        <MarketStatusChip />
+        <ThemeToggle />
         <Button variant="ghost" size="icon" aria-label="Alerts">
           <Bell className="size-4" />
         </Button>
@@ -157,6 +163,7 @@ function Topbar() {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+      <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
     </header>
   );
 }
