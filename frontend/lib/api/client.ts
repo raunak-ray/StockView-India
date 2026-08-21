@@ -12,6 +12,32 @@ export class ApiError extends Error {
 
 const BASE = "/api/v1";
 
+/** Paths where a 401 is a meaningful answer (wrong password, dead refresh
+ *  token) — attempting a refresh cycle for them is pointless or harmful. */
+const NO_REFRESH_PATHS = ["/auth/login", "/auth/register", "/auth/refresh"];
+
+/**
+ * Single-flight session refresh.
+ *
+ * The backend rotates (revokes) the refresh token on every /auth/refresh,
+ * so concurrent 401 responses MUST share one refresh call — parallel calls
+ * would each burn the cookie and all-but-one would fail.
+ */
+let inflightRefresh: Promise<boolean> | null = null;
+
+function refreshSession(): Promise<boolean> {
+  inflightRefresh ??= fetch(`${BASE}/auth/refresh`, {
+    method: "POST",
+    credentials: "include",
+  })
+    .then((res) => res.ok)
+    .catch(() => false)
+    .finally(() => {
+      inflightRefresh = null;
+    });
+  return inflightRefresh;
+}
+
 async function request<T>(
   path: string,
   options: RequestInit = {},
@@ -26,15 +52,13 @@ async function request<T>(
     ...options,
   });
 
-  if (res.status === 401 && allowRetry && !path.startsWith("/auth/")) {
-    const refreshed = await request<unknown>(
-      "/auth/refresh",
-      { method: "POST" },
-      false,
-    );
+  const excluded = NO_REFRESH_PATHS.some((p) => path.startsWith(p));
+  if (res.status === 401 && allowRetry && !excluded) {
+    const refreshed = await refreshSession();
     if (refreshed) {
       return request<T>(path, options, false);
     }
+    throw new ApiError(401, "Your session has expired. Please sign in again.");
   }
 
   if (!res.ok) {
@@ -55,4 +79,5 @@ export const api = {
   get: <T>(path: string) => request<T>(path),
   post: <T>(path: string, body?: unknown) =>
     request<T>(path, { method: "POST", body: body ? JSON.stringify(body) : undefined }),
+  del: <T>(path: string) => request<T>(path, { method: "DELETE" }),
 };
