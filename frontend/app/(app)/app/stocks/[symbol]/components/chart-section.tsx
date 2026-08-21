@@ -11,16 +11,16 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { PriceChart, type ChartStyle } from "@/components/charts/price-chart";
+import { PriceChart, type SRLevel } from "@/components/charts/price-chart";
 import { useHistory } from "@/lib/hooks/use-market";
-import { ApiError } from "@/lib/api/client";
-import { cn } from "@/lib/utils";
-
 import {
-  DEFAULT_TIMEFRAME,
-  TIMEFRAMES,
-  type Timeframe,
-} from "../constants";
+  useIndicators,
+  useSignal,
+  useSupportResistance,
+} from "@/lib/hooks/use-analytics";
+import { ApiError } from "@/lib/api/client";
+import { TIMEFRAMES, type Timeframe } from "../constants";
+import { cn } from "@/lib/utils";
 
 function Toggle({
   active,
@@ -51,16 +51,45 @@ function Toggle({
   );
 }
 
-export function ChartSection({ symbol }: { symbol: string }) {
-  const [timeframe, setTimeframe] = useState<Timeframe>(DEFAULT_TIMEFRAME);
-  const [style, setStyle] = useState<ChartStyle>("candles");
+export function ChartSection({
+  symbol,
+  timeframe,
+  onTimeframeChange,
+}: {
+  symbol: string;
+  timeframe: Timeframe;
+  onTimeframeChange: (tf: Timeframe) => void;
+}) {
+  const [style, setStyle] = useState<"candles" | "line">("candles");
+  // Panel defaults follow the Streamlit sidebar (app.py:991-1000, 1017).
   const [showSma20, setShowSma20] = useState(true);
   const [showSma50, setShowSma50] = useState(true);
+  const [showBB, setShowBB] = useState(false);
+  const [showRsi, setShowRsi] = useState(true);
+  const [showMacd, setShowMacd] = useState(false);
+  const [showSR, setShowSR] = useState(true);
+  const [showMarkers, setShowMarkers] = useState(true);
 
   const history = useHistory(symbol, timeframe.interval, timeframe.period);
+  const indicators = useIndicators(symbol, timeframe.interval, timeframe.period);
+  const sr = useSupportResistance(symbol, timeframe.interval, timeframe.period);
+  const signal = useSignal(symbol, timeframe.interval, timeframe.period);
+
   const notFound =
     history.error instanceof ApiError && history.error.status === 404;
-  const candles = history.data?.candles;
+
+  const srLevels: SRLevel[] = showSR
+    ? [
+        ...(sr.data?.supports ?? []).map((price) => ({
+          price,
+          kind: "support" as const,
+        })),
+        ...(sr.data?.resistances ?? []).map((price) => ({
+          price,
+          kind: "resistance" as const,
+        })),
+      ]
+    : [];
 
   return (
     <Card>
@@ -74,7 +103,7 @@ export function ChartSection({ symbol }: { symbol: string }) {
                 key={tf.label}
                 label={`${tf.label} timeframe`}
                 active={timeframe.label === tf.label}
-                onClick={() => setTimeframe(tf)}
+                onClick={() => onTimeframeChange(tf)}
               >
                 {tf.label}
               </Toggle>
@@ -98,7 +127,7 @@ export function ChartSection({ symbol }: { symbol: string }) {
             </Toggle>
           </div>
           {/* Overlays */}
-          <div className="flex items-center gap-1 rounded-lg border border-border bg-card p-1">
+          <div className="flex flex-wrap items-center gap-1 rounded-lg border border-border bg-card p-1">
             <Toggle
               label="Toggle SMA 20 overlay"
               active={showSma20}
@@ -112,6 +141,44 @@ export function ChartSection({ symbol }: { symbol: string }) {
               onClick={() => setShowSma50((v) => !v)}
             >
               SMA 50
+            </Toggle>
+            <Toggle
+              label="Toggle Bollinger Bands overlay"
+              active={showBB}
+              onClick={() => setShowBB((v) => !v)}
+            >
+              BB
+            </Toggle>
+          </div>
+          {/* Panels */}
+          <div className="flex flex-wrap items-center gap-1 rounded-lg border border-border bg-card p-1">
+            <Toggle
+              label="Toggle RSI panel"
+              active={showRsi}
+              onClick={() => setShowRsi((v) => !v)}
+            >
+              RSI
+            </Toggle>
+            <Toggle
+              label="Toggle MACD panel"
+              active={showMacd}
+              onClick={() => setShowMacd((v) => !v)}
+            >
+              MACD
+            </Toggle>
+            <Toggle
+              label="Toggle support and resistance lines"
+              active={showSR}
+              onClick={() => setShowSR((v) => !v)}
+            >
+              S/R
+            </Toggle>
+            <Toggle
+              label="Toggle buy sell markers"
+              active={showMarkers}
+              onClick={() => setShowMarkers((v) => !v)}
+            >
+              Signals
             </Toggle>
           </div>
         </div>
@@ -132,27 +199,50 @@ export function ChartSection({ symbol }: { symbol: string }) {
               </Button>
             )}
           </div>
-        )         : !candles || candles.length === 0 ? (
+        ) : !history.data || history.data.candles.length === 0 ? (
           <div className="flex h-[420px] items-center justify-center rounded-lg border border-dashed border-border">
             <p className="text-sm text-muted-foreground">No data in range.</p>
           </div>
         ) : (
           <>
             <PriceChart
-              candles={candles}
+              candles={history.data.candles}
+              indicators={indicators.data}
+              markers={signal.data?.markers ?? []}
+              srLevels={srLevels}
               chartStyle={style}
               showVolume
               showSma20={showSma20}
               showSma50={showSma50}
+              showBB={showBB}
+              showRsi={showRsi}
+              showMacd={showMacd}
             />
-            <div className="mt-2 flex items-center gap-4 font-mono text-[11px] text-muted-foreground">
+            <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 font-mono text-[11px] text-muted-foreground">
               <span className="flex items-center gap-1.5">
                 <span className="h-0.5 w-4 bg-gold" /> SMA 20
               </span>
               <span className="flex items-center gap-1.5">
                 <span className="h-0.5 w-4 bg-info" /> SMA 50
               </span>
-              <span>{candles.length} bars</span>
+              {showBB && (
+                <span className="flex items-center gap-1.5">
+                  <span className="h-0.5 w-4 bg-ai" /> Bollinger
+                </span>
+              )}
+              {srLevels.length > 0 && (
+                <>
+                  <span className="flex items-center gap-1.5">
+                    <span className="h-0 w-4 border-t-2 border-dashed border-up" />
+                    Support
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="h-0 w-4 border-t-2 border-dashed border-down" />
+                    Resistance
+                  </span>
+                </>
+              )}
+              <span>{history.data.count} bars</span>
             </div>
           </>
         )}
