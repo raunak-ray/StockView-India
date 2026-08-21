@@ -7,17 +7,134 @@
 .dot-grid {
   background-image: radial-gradient(
     circle,
-    hsl(var(--border)) 1px,
+    var(--border) 1px,
     transparent 1px
   );
   background-size: 22px 22px;
 }
 
+/*
+ * Design tokens — based on plan/03 §3 (GitHub-dark terminal aesthetic).
+ *
+ * Cascade rule that makes theming work: `:root` (light) MUST come before
+ * `.dark` — both selectors have equal specificity, so source order decides
+ * which palette wins when <html class="dark"> is set by next-themes.
+ *
+ * Semantic discipline: teal = up/positive, red = down/negative,
+ * gold = hold/alert, blue = info, purple = AI/ML.
+ * Semantic colors are theme-aware: deeper shades in light mode for
+ * readable contrast on white, brighter shades in dark mode.
+ */
+
+/* ── Light theme ─────────────────────────────────────────────────────────── */
+:root {
+  --radius: 0.625rem;
+
+  --background: #f5f7fa;
+  --foreground: #1a1f2e;
+  --card: #ffffff;
+  --card-foreground: #1a1f2e;
+  --popover: #ffffff;
+  --popover-foreground: #1a1f2e;
+  --primary: #0f766e; /* deep teal — white text passes contrast on light bg */
+  --primary-foreground: #ffffff;
+  --secondary: #e4e8ef;
+  --secondary-foreground: #1a1f2e;
+  --muted: #eef1f6;
+  --muted-foreground: #57606a;
+  --accent: #eef1f6;
+  --accent-foreground: #1a1f2e;
+  --destructive: #dc2626;
+  --border: #d0d7de;
+  --input: #e4e8ef;
+  --ring: rgb(15 118 110 / 0.35);
+
+  --chart-1: #0f766e;
+  --chart-2: #dc2626;
+  --chart-3: #b45309;
+  --chart-4: #2563eb;
+  --chart-5: #7c3aed;
+
+  --sidebar: #ffffff;
+  --sidebar-foreground: #1a1f2e;
+  --sidebar-primary: #0f766e;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #eef1f6;
+  --sidebar-accent-foreground: #1a1f2e;
+  --sidebar-border: #d0d7de;
+  --sidebar-ring: rgb(15 118 110 / 0.35);
+
+  /* Semantic market colors (readable on light surfaces) */
+  --up: #0f766e;
+  --up-strong: #0d5f59;
+  --down: #dc2626;
+  --gold: #b45309;
+  --info: #2563eb;
+  --ai: #7c3aed;
+  --chart-grid: #e2e6ee;
+}
+
+/* ── Dark theme (product default) ────────────────────────────────────────── */
+.dark {
+  --background: #0d1117;
+  --foreground: #e6edf3;
+  --card: #161b22;
+  --card-foreground: #e6edf3;
+  --popover: #161b22;
+  --popover-foreground: #e6edf3;
+  --primary: #26a69a;
+  --primary-foreground: #ffffff;
+  --secondary: #21262d;
+  --secondary-foreground: #e6edf3;
+  --muted: #1c2128;
+  --muted-foreground: #8b949e;
+  --accent: #21262d;
+  --accent-foreground: #e6edf3;
+  --destructive: #ef5350;
+  --border: #30363d;
+  --input: #21262d;
+  --ring: rgb(38 166 154 / 0.25);
+
+  --chart-1: #26a69a;
+  --chart-2: #ef5350;
+  --chart-3: #d29922;
+  --chart-4: #1a7fd4;
+  --chart-5: #8957e5;
+
+  --sidebar: #161b22;
+  --sidebar-foreground: #e6edf3;
+  --sidebar-primary: #26a69a;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #1c2128;
+  --sidebar-accent-foreground: #e6edf3;
+  --sidebar-border: #30363d;
+  --sidebar-ring: rgb(38 166 154 / 0.25);
+
+  /* Semantic market colors (bright enough on dark surfaces) */
+  --up: #26a69a;
+  --up-strong: #2fb8ab;
+  --down: #ef5350;
+  --gold: #d29922;
+  --info: #1a7fd4;
+  --ai: #8957e5;
+  --chart-grid: #1e2535;
+}
+
+/* Expose semantic colors + fonts as Tailwind utilities
+   (text-up, bg-down/10, border-gold/30, font-mono, …). */
 @theme inline {
+  --color-up: var(--up);
+  --color-up-strong: var(--up-strong);
+  --color-down: var(--down);
+  --color-gold: var(--gold);
+  --color-info: var(--info);
+  --color-ai: var(--ai);
+  --color-chart-grid: var(--chart-grid);
+
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-mono: var(--font-mono);
   --font-heading: var(--font-sans);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
@@ -55,75 +172,6 @@
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
-}
-
-:root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
-}
-
-.dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
 }
 
 @layer base {
