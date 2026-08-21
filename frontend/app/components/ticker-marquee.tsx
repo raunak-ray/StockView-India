@@ -20,7 +20,7 @@ export function MarketTickerMarquee() {
         {TICKERS.map((t) => (
           <span
             key={t}
-            className="font-mono text-sm text-muted-foreground [&:has(▼)]:text-red-400 [&:has(▲)]:text-emerald-400"
+            className="font-mono text-sm text-muted-foreground [&:has(▼)]:text-down [&:has(▲)]:text-up"
           >
             {t}
           </span>
