@@ -12,6 +12,7 @@ dependencies = [
     "alembic",
     "psycopg[binary]",
     "redis",
+    "aiosqlite",
     "arq",
     "apscheduler",
     "httpx",
@@ -39,3 +40,19 @@ packages = ["app"]
 
 [tool.ruff]
 line-length = 100
+
+[tool.ruff.lint]
+# B008: `Depends()`/`Query()` in parameter defaults is the idiomatic
+# FastAPI dependency-injection pattern used throughout this codebase.
+ignore = ["B008"]
+
+[tool.mypy]
+python_version = "3.12"
+explicit_package_bases = true
+mypy_path = "."
+ignore_missing_imports = true
+check_untyped_defs = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
