@@ -35,11 +35,14 @@ import { cn } from "@/lib/utils";
 
 import {
   DEFAULT_REFRESH_INTERVAL,
+  DEFAULT_TIMEFRAME,
   REFRESH_INTERVALS,
   type RefreshInterval,
+  type Timeframe,
 } from "../constants";
 import { useDocumentTitle } from "../hooks/use-document-title";
 import { ChartSection } from "./chart-section";
+import { VerdictCard } from "./verdict-card";
 import { WatchlistStar } from "./watchlist-star";
 
 function exchangeOf(symbol: string): string {
@@ -70,6 +73,7 @@ function Stat({ label, value }: { label: string; value: string }) {
 export function QuoteView({ symbol }: { symbol: string }) {
   const [intervalSec, setIntervalSec] =
     useState<RefreshInterval>(DEFAULT_REFRESH_INTERVAL);
+  const [timeframe, setTimeframe] = useState<Timeframe>(DEFAULT_TIMEFRAME);
   const quote = useQuote(symbol, intervalSec);
   const info = useStockInfo(symbol);
 
@@ -188,9 +192,13 @@ export function QuoteView({ symbol }: { symbol: string }) {
         </div>
       </motion.div>
 
-      <ChartSection symbol={symbol} />
+      <ChartSection
+        symbol={symbol}
+        timeframe={timeframe}
+        onTimeframeChange={setTimeframe}
+      />
 
-      {/* Key stats */}
+      {/* Key stats + verdict rail */}
       <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
         <Card>
           <CardHeader className="pb-3">
@@ -240,40 +248,44 @@ export function QuoteView({ symbol }: { symbol: string }) {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm">52-week range</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {info.isLoading ? (
-              <Skeleton className="h-12 w-full" />
-            ) : (
-              <>
-                <div className="flex items-center justify-between font-mono text-sm">
-                  <span className="text-down">
-                    {formatINR(infoNumber(meta, "fiftyTwoWeekLow"))}
-                  </span>
-                  <span className="text-up">
-                    {formatINR(infoNumber(meta, "fiftyTwoWeekHigh"))}
-                  </span>
-                </div>
-                <RangeBar
-                  low={infoNumber(meta, "fiftyTwoWeekLow")}
-                  high={infoNumber(meta, "fiftyTwoWeekHigh")}
-                  current={quote.data?.price ?? null}
-                />
-                <Stat
-                  label="Market cap"
-                  value={
-                    infoNumber(meta, "marketCap") !== null
-                      ? `${formatCompact(infoNumber(meta, "marketCap"))}`
-                      : "—"
-                  }
-                />
-              </>
-            )}
-          </CardContent>
-        </Card>
+        <div className="flex flex-col gap-4">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm">52-week range</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {info.isLoading ? (
+                <Skeleton className="h-12 w-full" />
+              ) : (
+                <>
+                  <div className="flex items-center justify-between font-mono text-sm">
+                    <span className="text-down">
+                      {formatINR(infoNumber(meta, "fiftyTwoWeekLow"))}
+                    </span>
+                    <span className="text-up">
+                      {formatINR(infoNumber(meta, "fiftyTwoWeekHigh"))}
+                    </span>
+                  </div>
+                  <RangeBar
+                    low={infoNumber(meta, "fiftyTwoWeekLow")}
+                    high={infoNumber(meta, "fiftyTwoWeekHigh")}
+                    current={quote.data?.price ?? null}
+                  />
+                  <Stat
+                    label="Market cap"
+                    value={
+                      infoNumber(meta, "marketCap") !== null
+                        ? `${formatCompact(infoNumber(meta, "marketCap"))}`
+                        : "—"
+                    }
+                  />
+                </>
+              )}
+            </CardContent>
+          </Card>
+
+          <VerdictCard symbol={symbol} timeframe={timeframe} />
+        </div>
       </div>
     </div>
   );
