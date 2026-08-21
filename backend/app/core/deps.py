@@ -52,7 +52,7 @@ async def get_current_user(
         payload = decode_access_token(token)
         if payload.get("type") != "access":
             raise ValueError("wrong token type")
-    except Exception:
+    except Exception:  # noqa: BLE001 - any decode failure means "not authenticated"
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Session expired or invalid.",
