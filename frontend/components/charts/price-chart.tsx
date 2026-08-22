@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   CandlestickSeries,
   ColorType,
@@ -20,6 +20,7 @@ import {
 import { useTheme } from "next-themes";
 
 import type { IndicatorsResponse, SeriesPoint } from "@/lib/api/analytics";
+import type { SmcResponse } from "@/lib/api/smc";
 import type { SignalMarker } from "@/lib/api/signals";
 import type { Candle } from "@/lib/api/market";
 
@@ -35,6 +36,9 @@ export interface PriceChartProps {
   indicators?: IndicatorsResponse;
   markers?: SignalMarker[];
   srLevels?: SRLevel[];
+  /** Smart-money overlays (order blocks, FVGs, premium/discount). */
+  smc?: SmcResponse | null;
+  showSMC?: boolean;
   height?: number;
   chartStyle?: ChartStyle;
   showVolume?: boolean;
@@ -67,6 +71,11 @@ function palette(dark: boolean) {
         volDown: "rgba(239,83,80,0.4)",
         macdUp: "rgba(38,166,154,0.5)",
         macdDown: "rgba(239,83,80,0.5)",
+        eq: "#d29922",
+        bullFill: "rgba(38,166,154,0.16)",
+        bullFillMuted: "rgba(38,166,154,0.06)",
+        bearFill: "rgba(239,83,80,0.16)",
+        bearFillMuted: "rgba(239,83,80,0.06)",
       }
     : {
         background: "#ffffff",
@@ -87,6 +96,11 @@ function palette(dark: boolean) {
         volDown: "rgba(220,38,38,0.35)",
         macdUp: "rgba(15,118,110,0.45)",
         macdDown: "rgba(220,38,38,0.45)",
+        eq: "#b45309",
+        bullFill: "rgba(15,118,110,0.14)",
+        bullFillMuted: "rgba(15,118,110,0.05)",
+        bearFill: "rgba(220,38,38,0.14)",
+        bearFillMuted: "rgba(220,38,38,0.05)",
       };
 }
 
@@ -103,6 +117,8 @@ export function PriceChart({
   indicators,
   markers = [],
   srLevels = [],
+  smc = null,
+  showSMC = false,
   height = 420,
   chartStyle = "candles",
   showVolume = true,
@@ -127,6 +143,112 @@ export function PriceChart({
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme !== "light";
   const colors = useMemo(() => palette(isDark), [isDark]);
+
+  /**
+   * SMC zones (order blocks, FVGs, premium/discount) are drawn as translucent
+   * rectangles on an absolutely-positioned SVG layer — lightweight-charts has
+   * no native box primitive. Rects are recomputed from series coordinates
+   * whenever data or the visible time range changes.
+   */
+  type ZoneRect = {
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+    fill: string;
+    stroke?: string;
+  };
+  const [zoneRects, setZoneRects] = useState<ZoneRect[]>([]);
+  const redrawZonesRef = useRef<() => void>(() => {});
+
+  useEffect(() => {
+    redrawZonesRef.current = () => {
+      const chart = chartRef.current;
+      const main = mainRef.current;
+      const el = containerRef.current;
+      if (!chart || !main || !el || !showSMC || !smc) {
+        setZoneRects([]);
+        return;
+      }
+      const ts = chart.timeScale();
+      const width = el.clientWidth;
+
+      // Coordinates may be null when a point sits outside the visible range;
+      // clamp zone starts to the left edge so boxes stay anchored.
+      const xOf = (iso: string) => ts.timeToCoordinate(toTime(iso)) ?? 0;
+      const yOf = (p: number) => main.priceToCoordinate(p);
+
+      const rects: ZoneRect[] = [];
+      const pushBox = (
+        iso: string,
+        topPrice: number,
+        btmPrice: number,
+        fill: string,
+        stroke: string,
+      ) => {
+        const left = xOf(iso);
+        const top = yOf(topPrice);
+        const bottom = yOf(btmPrice);
+        if (top === null || bottom === null) return;
+        rects.push({
+          left,
+          top: Math.min(top, bottom),
+          width: Math.max(0, width - left),
+          height: Math.abs(bottom - top),
+          fill,
+          stroke,
+        });
+      };
+
+      for (const ob of smc.bull_obs) {
+        pushBox(ob.time, ob.top, ob.btm,
+          ob.mitigated ? colors.bullFillMuted : colors.bullFill, colors.up);
+      }
+      for (const ob of smc.bear_obs) {
+        pushBox(ob.time, ob.top, ob.btm,
+          ob.mitigated ? colors.bearFillMuted : colors.bearFill, colors.down);
+      }
+      for (const f of smc.fvgs) {
+        pushBox(f.time, f.top, f.btm,
+          f.bull
+            ? f.mitigated ? colors.bullFillMuted : colors.bullFill
+            : f.mitigated ? colors.bearFillMuted : colors.bearFill,
+          "transparent");
+      }
+
+      // Premium/discount bands + equilibrium line span the full width.
+      if (smc.range_high !== null && smc.range_low !== null && smc.equilibrium !== null) {
+        pushBox(
+          candles[0]?.time ?? "",
+          smc.range_high, smc.equilibrium,
+          colors.bearFillMuted, "transparent",
+        );
+        pushBox(
+          candles[0]?.time ?? "",
+          smc.equilibrium, smc.range_low,
+          colors.bullFillMuted, "transparent",
+        );
+        const eqY = yOf(smc.equilibrium);
+        if (eqY !== null) {
+          rects.push({
+            left: 0, top: eqY, width, height: 1,
+            fill: colors.eq, stroke: colors.eq,
+          });
+        }
+      }
+      setZoneRects(rects);
+    };
+    redrawZonesRef.current();
+  }, [smc, showSMC, colors, candles]);
+
+  // Recompute zone geometry on pan/zoom of the visible range.
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (!chart) return;
+    const handler = () => redrawZonesRef.current();
+    chart.timeScale().subscribeVisibleTimeRangeChange(handler);
+    return () => chart.timeScale().unsubscribeVisibleTimeRangeChange(handler);
+  }, [isDark, chartStyle, height, showVolume, showRsi, showMacd]);
 
   // Chart is rebuilt when theme/style or pane layout changes; series types
   // cannot be swapped in place and empty panes would still render axes.
@@ -334,34 +456,68 @@ export function PriceChart({
       }
     }
 
-    // Buy/sell markers.
-    markersRef.current?.setMarkers(
-      markers
-        .slice(-100)
-        .map<SeriesMarker<Time>>((m) =>
-          m.kind === "buy"
-            ? {
-                time: toTime(m.time),
-                position: "belowBar",
-                color: colors.up,
-                shape: "arrowUp",
-                text: "B",
-              }
-            : {
-                time: toTime(m.time),
-                position: "aboveBar",
-                color: colors.down,
-                shape: "arrowDown",
-                text: "S",
-              },
-        ),
-    );
+    // Buy/sell markers + market-structure labels share one plugin.
+    const signalMarkers: SeriesMarker<Time>[] = markers
+      .slice(-100)
+      .map((m) =>
+        m.kind === "buy"
+          ? {
+              time: toTime(m.time),
+              position: "belowBar",
+              color: colors.up,
+              shape: "arrowUp",
+              text: "B",
+            }
+          : {
+              time: toTime(m.time),
+              position: "aboveBar",
+              color: colors.down,
+              shape: "arrowDown",
+              text: "S",
+            },
+      );
+
+    const structMarkers: SeriesMarker<Time>[] = showSMC
+      ? (smc?.ms_signals ?? []).slice(-10).map((m) => ({
+          time: toTime(m.time),
+          position: m.bull ? "belowBar" : "aboveBar",
+          color: m.bull ? colors.up : colors.down,
+          shape: "circle",
+          text: m.label,
+          size: 1,
+        }))
+      : [];
+
+    markersRef.current?.setMarkers([...signalMarkers, ...structMarkers]);
 
     chart.timeScale().fitContent();
   }, [
-    candles, indicators, markers, srLevels, chartStyle, showVolume,
-    showSma20, showSma50, showBB, showRsi, showMacd, colors,
+    candles, indicators, markers, srLevels, smc, showSMC, chartStyle,
+    showVolume, showSma20, showSma50, showBB, showRsi, showMacd, colors,
   ]);
 
-  return <div ref={containerRef} className="w-full" style={{ height }} />;
+  return (
+    <div ref={containerRef} className="relative w-full" style={{ height }}>
+      {/* SMC zone layer — transparent to mouse so the chart stays interactive. */}
+      <svg
+        aria-hidden
+        className="pointer-events-none absolute inset-0"
+        width="100%"
+        height="100%"
+      >
+        {zoneRects.map((r, i) => (
+          <rect
+            key={i}
+            x={r.left}
+            y={r.top}
+            width={Math.max(r.width, 0)}
+            height={Math.max(r.height, 0)}
+            fill={r.fill}
+            stroke={r.stroke}
+            strokeWidth={r.stroke && r.stroke !== "transparent" ? 1 : 0}
+          />
+        ))}
+      </svg>
+    </div>
+  );
 }
