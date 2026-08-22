@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { CandlestickChart, LineChart, RefreshCw } from "lucide-react";
 
 import {
@@ -16,6 +16,7 @@ import { useHistory } from "@/lib/hooks/use-market";
 import {
   useIndicators,
   useSignal,
+  useSmc,
   useSupportResistance,
 } from "@/lib/hooks/use-analytics";
 import { ApiError } from "@/lib/api/client";
@@ -69,11 +70,17 @@ export function ChartSection({
   const [showMacd, setShowMacd] = useState(false);
   const [showSR, setShowSR] = useState(true);
   const [showMarkers, setShowMarkers] = useState(true);
+  // SMC master toggle defaults OFF (Streamlit show_traderbuddies default).
+  const [showSMC, setShowSMC] = useState(false);
+  const [showOB, setShowOB] = useState(true);
+  const [showFVG, setShowFVG] = useState(true);
+  const [showZones, setShowZones] = useState(true);
 
   const history = useHistory(symbol, timeframe.interval, timeframe.period);
   const indicators = useIndicators(symbol, timeframe.interval, timeframe.period);
   const sr = useSupportResistance(symbol, timeframe.interval, timeframe.period);
   const signal = useSignal(symbol, timeframe.interval, timeframe.period);
+  const smc = useSmc(symbol, timeframe.interval, timeframe.period);
 
   const notFound =
     history.error instanceof ApiError && history.error.status === 404;
@@ -90,6 +97,20 @@ export function ChartSection({
         })),
       ]
     : [];
+
+  // Respect the SMC sub-toggles before handing data to the chart.
+  const smcData = useMemo(() => {
+    if (!showSMC || !smc.data) return null;
+    return {
+      ...smc.data,
+      bull_obs: showOB ? smc.data.bull_obs : [],
+      bear_obs: showOB ? smc.data.bear_obs : [],
+      fvgs: showFVG ? smc.data.fvgs : [],
+      range_high: showZones ? smc.data.range_high : null,
+      range_low: showZones ? smc.data.range_low : null,
+      equilibrium: showZones ? smc.data.equilibrium : null,
+    };
+  }, [showSMC, showOB, showFVG, showZones, smc.data]);
 
   return (
     <Card>
@@ -181,6 +202,41 @@ export function ChartSection({
               Signals
             </Toggle>
           </div>
+          {/* SMC master + sub-toggles (sub-toggles only when enabled) */}
+          <div className="flex flex-wrap items-center gap-1 rounded-lg border border-border bg-card p-1">
+            <Toggle
+              label="Toggle smart money concepts overlay"
+              active={showSMC}
+              onClick={() => setShowSMC((v) => !v)}
+            >
+              SMC
+            </Toggle>
+            {showSMC && (
+              <>
+                <Toggle
+                  label="Toggle order blocks"
+                  active={showOB}
+                  onClick={() => setShowOB((v) => !v)}
+                >
+                  OB
+                </Toggle>
+                <Toggle
+                  label="Toggle fair value gaps"
+                  active={showFVG}
+                  onClick={() => setShowFVG((v) => !v)}
+                >
+                  FVG
+                </Toggle>
+                <Toggle
+                  label="Toggle premium discount zones"
+                  active={showZones}
+                  onClick={() => setShowZones((v) => !v)}
+                >
+                  Zones
+                </Toggle>
+              </>
+            )}
+          </div>
         </div>
       </CardHeader>
       <CardContent>
@@ -208,8 +264,10 @@ export function ChartSection({
             <PriceChart
               candles={history.data.candles}
               indicators={indicators.data}
-              markers={signal.data?.markers ?? []}
+              markers={showMarkers ? (signal.data?.markers ?? []) : []}
               srLevels={srLevels}
+              smc={smcData}
+              showSMC={showSMC}
               chartStyle={style}
               showVolume
               showSma20={showSma20}
@@ -240,6 +298,27 @@ export function ChartSection({
                     <span className="h-0 w-4 border-t-2 border-dashed border-down" />
                     Resistance
                   </span>
+                </>
+              )}
+              {showSMC && smcData && (
+                <>
+                  <span className="flex items-center gap-1.5">
+                    <span className="size-2 rounded-sm bg-up/40 ring-1 ring-up" />
+                    Bull OB
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="size-2 rounded-sm bg-down/40 ring-1 ring-down" />
+                    Bear OB
+                  </span>
+                  {smcData.equilibrium !== null && (
+                    <span className="flex items-center gap-1.5">
+                      <span className="h-0 w-4 border-t-2 border-dashed border-gold" />
+                      EQ
+                    </span>
+                  )}
+                  {smcData.ms_signals.length > 0 && (
+                    <span>{smcData.ms_signals.slice(-1)[0].label} last structure</span>
+                  )}
                 </>
               )}
               <span>{history.data.count} bars</span>
