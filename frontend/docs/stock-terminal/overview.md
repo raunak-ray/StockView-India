@@ -13,6 +13,8 @@
   [chart-layers.md](chart-layers.md).
 - **Verdict card** — BUY / HOLD / SELL badge, score gauge (−15…+15),
   confidence, rule chips, plain "Why" list.
+- **News & mood card** — headlines with tone badges plus two mood meters:
+  news mood (headline tone) and chart mood (indicator checks), each −1…+1.
 - **Star button** — add/remove from your watchlist.
 
 ## Good to know
@@ -29,4 +31,4 @@ quote-view, verdict-card, watchlist-star). Shared renderer:
 
 ## Coming later
 
-News tab, AI model tab, fusion verdict, analysis matrix.
+AI model tab, fusion verdict, analysis matrix.

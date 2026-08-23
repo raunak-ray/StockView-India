@@ -35,5 +35,5 @@ flowchart LR
 | [markets/](markets/overview.md) | `/app/markets` | NSE quotes, flows, options |
 | [sectors/](sectors/overview.md) | `/app/sectors` | Sector treemap |
 
-Look & feel: [design-system/](design-system/colors.md). Coming later: news,
-AI, paper trading, alerts, backtesting, ledger (`plan/06-rebuild-plan.md`).
+Look & feel: [design-system/](design-system/colors.md). Coming later: AI,
+paper trading, alerts, backtesting, ledger (`plan/06-rebuild-plan.md`).
