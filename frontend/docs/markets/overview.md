@@ -1,30 +1,35 @@
 # Markets — Overview
 
-**Plain words:** the NSE India data hub — four tabs of exchange-level data
-Yahoo doesn't provide well.
+**Plain words:** the NSE India data hub — four full-width tabs of
+exchange-level data Yahoo doesn't offer well.
 
-## The four tabs
+## The four tabs (lucide icons, no emojis)
 
 1. **NSE Quote** — search any instrument (the search waits until you stop
    typing), see the official NSE quote card, auto-refreshing every 60s.
 2. **FII / DII** — ₹ crores foreign (FII) and domestic (DII) institutions
-   bought/sold: flow cards, sparkline, session table. If live sources are
-   unreachable, static numbers load and a yellow notice says so.
-3. **Advances / Declines** — how many stocks rose vs fell: stat tiles plus a
-   ratio bar. A wide gap means a strong market day.
-4. **Options / PCR** — pick an index chip or type an equity: PCR & max-pain
-   cards and the full option chain with strike filter, near-ATM window and
-   pagination.
+   bought/sold: two flow cards with sparklines, then **recent sessions as
+   paginated cards** (4 per page).
+3. **Advances / Declines** — how many Nifty-50 stocks rose/fell: stat tiles
+   with icons plus a ratio bar.
+4. **Options / PCR** — index chips or a custom equity: Spot / PCR / max-pain
+   cards and the option chain table with strike filter, near-ATM window and
+   a pager.
+
+## Tooltips everywhere jargon appears
+
+Hover any small **ⓘ** for a one-line plain-English explanation: PCR, max
+pain, VWAP, OI, CE/PE, A/D ratio, near-ATM, FII/DII.
 
 ## Good to know
 
-On networks outside India, NSE blocks API calls → the options tab may show
-"unavailable". Documented limitation, not a bug; quotes and FII/DII have
-fallbacks that usually still work. Each tab caches and refreshes on its own
-schedule.
+- No data-source or cache notices are shown — the interface stays quiet and
+  clean; failures simply say "unavailable, retry".
+- Outside India, NSE often blocks API calls → the options tab may show
+  "unavailable". Documented limitation, not a bug.
 
 ## Where the code lives
 
-`frontend/app/(app)/app/markets/` — page + one component per tab +
-`constants.ts`. Client: `lib/api/nse.ts`; hooks: `lib/hooks/use-nse.ts`,
+`frontend/app/(app)/app/markets/` — page + one component per tab + shared
+`pager.tsx`. Client: `lib/api/nse.ts`; hooks: `lib/hooks/use-nse.ts`,
 `use-debounce.ts`.
