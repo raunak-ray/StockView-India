@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Activity,
   Bell,
@@ -10,6 +10,7 @@ import {
   LayoutDashboard,
   LineChart,
   LogOut,
+  Menu,
   PieChart,
   Search,
   Settings,
@@ -19,6 +20,12 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -44,33 +51,25 @@ const NAV = [
   { href: "/app/paper-trading", label: "Paper Trading", icon: Wallet },
 ];
 
-export function AppShell({ children }: { children: React.ReactNode }) {
+function brandLink() {
   return (
-    <RequireAuth>
-      <div className="flex min-h-dvh bg-background">
-        <Sidebar />
-        <div className="flex min-w-0 flex-1 flex-col">
-          <Topbar />
-          <main className="flex-1 p-6">{children}</main>
-        </div>
-      </div>
-    </RequireAuth>
+    <Link
+      href="/app"
+      className="flex h-14 items-center gap-2 border-b border-border px-5"
+    >
+      <span className="flex size-7 items-center justify-center rounded-lg bg-primary text-sm font-bold text-primary-foreground">
+        SV
+      </span>
+      <span className="text-sm font-semibold">StockView</span>
+    </Link>
   );
 }
 
-function Sidebar() {
+/** Nav rows shared by the desktop sidebar and the mobile sheet. */
+function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   return (
-    <aside className="sticky top-0 hidden h-dvh w-60 shrink-0 flex-col border-r border-border bg-card/40 md:flex">
-      <Link
-        href="/app"
-        className="flex h-14 items-center gap-2 border-b border-border px-5"
-      >
-        <span className="flex size-7 items-center justify-center rounded-lg bg-primary text-sm font-bold text-primary-foreground">
-          SV
-        </span>
-        <span className="text-sm font-semibold">StockView</span>
-      </Link>
+    <>
       <nav className="flex-1 space-y-1 overflow-y-auto p-3">
         {NAV.map((item) => {
           const active =
@@ -81,6 +80,7 @@ function Sidebar() {
             <Link
               key={item.href}
               href={item.href}
+              onClick={onNavigate}
               className={cn(
                 "flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-primary/5 hover:text-foreground",
                 active && "bg-primary/10 text-foreground",
@@ -95,13 +95,53 @@ function Sidebar() {
       <div className="border-t border-border p-3">
         <Link
           href="/app/settings"
+          onClick={onNavigate}
           className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-primary/5 hover:text-foreground"
         >
           <Settings className="size-4" />
           Settings
         </Link>
       </div>
+    </>
+  );
+}
+
+function Sidebar() {
+  return (
+    <aside className="sticky top-0 hidden h-dvh w-60 shrink-0 flex-col border-r border-border bg-card/40 md:flex">
+      {brandLink()}
+      <NavLinks />
     </aside>
+  );
+}
+
+/** Hamburger drawer for small screens — same destinations as the sidebar. */
+function MobileNav({
+  open,
+  onOpenChange,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const pathname = usePathname();
+
+  // Close the drawer whenever a navigation happens from inside it.
+  useEffect(() => {
+    onOpenChange(false);
+  }, [pathname, onOpenChange]);
+
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent side="left" className="w-72 gap-0 p-0">
+        <SheetHeader className="border-b border-border p-0">
+          <SheetTitle className="sr-only">Navigation</SheetTitle>
+          {brandLink()}
+        </SheetHeader>
+        <div className="flex min-h-0 flex-1 flex-col">
+          <NavLinks />
+        </div>
+      </SheetContent>
+    </Sheet>
   );
 }
 
@@ -109,11 +149,21 @@ function Topbar() {
   const { data: user } = useMe();
   const logout = useLogout();
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [navOpen, setNavOpen] = useState(false);
 
   const initials = (user?.username ?? "?").slice(0, 2).toUpperCase();
 
   return (
-    <header className="sticky top-0 z-20 flex h-14 items-center gap-4 border-b border-border bg-background/80 px-4 backdrop-blur md:px-6">
+    <header className="sticky top-0 z-20 flex h-14 items-center gap-3 border-b border-border bg-background/80 px-4 backdrop-blur md:gap-4 md:px-6">
+      <Button
+        variant="ghost"
+        size="icon"
+        aria-label="Open navigation"
+        className="md:hidden"
+        onClick={() => setNavOpen(true)}
+      >
+        <Menu className="size-5" />
+      </Button>
       <button
         type="button"
         onClick={() => setPaletteOpen(true)}
@@ -125,13 +175,15 @@ function Topbar() {
           ⌘K
         </kbd>
       </button>
-      <div className="ml-auto flex items-center gap-3">
-        <MarketStatusChip />
+      <div className="ml-auto flex items-center gap-2 md:gap-3">
+        <span className="hidden sm:block">
+          <MarketStatusChip />
+        </span>
         <ThemeToggle />
         <Button variant="ghost" size="icon" aria-label="Alerts">
           <Bell className="size-4" />
         </Button>
-        <Separator orientation="vertical" className="h-6" />
+        <Separator orientation="vertical" className="hidden h-6 md:block" />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button className="flex items-center gap-2 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring">
@@ -164,6 +216,21 @@ function Topbar() {
         </DropdownMenu>
       </div>
       <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
+      <MobileNav open={navOpen} onOpenChange={setNavOpen} />
     </header>
+  );
+}
+
+export function AppShell({ children }: { children: React.ReactNode }) {
+  return (
+    <RequireAuth>
+      <div className="flex min-h-dvh bg-background">
+        <Sidebar />
+        <div className="flex min-w-0 flex-1 flex-col">
+          <Topbar />
+          <main className="flex-1 p-4 md:p-6">{children}</main>
+        </div>
+      </div>
+    </RequireAuth>
   );
 }
