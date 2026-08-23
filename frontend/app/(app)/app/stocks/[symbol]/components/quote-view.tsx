@@ -41,6 +41,7 @@ import {
   type Timeframe,
 } from "../constants";
 import { useDocumentTitle } from "../hooks/use-document-title";
+import { AiCard } from "./ai-card";
 import { ChartSection } from "./chart-section";
 import { NewsCard } from "./news-card";
 import { VerdictCard } from "./verdict-card";
@@ -291,6 +292,9 @@ export function QuoteView({ symbol }: { symbol: string }) {
 
       {/* News + mood */}
       <NewsCard symbol={symbol} timeframe={timeframe} />
+
+      {/* AI prediction */}
+      <AiCard symbol={symbol} timeframe={timeframe} />
     </div>
   );
 }
