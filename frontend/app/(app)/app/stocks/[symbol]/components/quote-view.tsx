@@ -42,6 +42,7 @@ import {
 } from "../constants";
 import { useDocumentTitle } from "../hooks/use-document-title";
 import { ChartSection } from "./chart-section";
+import { NewsCard } from "./news-card";
 import { VerdictCard } from "./verdict-card";
 import { WatchlistStar } from "./watchlist-star";
 
@@ -287,6 +288,9 @@ export function QuoteView({ symbol }: { symbol: string }) {
           <VerdictCard symbol={symbol} timeframe={timeframe} />
         </div>
       </div>
+
+      {/* News + mood */}
+      <NewsCard symbol={symbol} timeframe={timeframe} />
     </div>
   );
 }
