@@ -13,10 +13,9 @@ import { EASE_IN_OUT, EASE_OUT } from "@/lib/ease";
 import { cn } from "@/lib/utils";
 
 const CHROMATIC_PALETTE = [
+  "#34d399",
+  "#22d3ee",
   "#60a5fa",
-  "#818cf8",
-  "#c084fc",
-  "#fb7185",
   "#fbbf24",
 ];
 
