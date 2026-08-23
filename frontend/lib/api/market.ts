@@ -81,3 +81,24 @@ export async function getMarketSummary(): Promise<MarketSummaryResponse> {
 export async function getGainersLosers(): Promise<GainersLosersResponse> {
   return api.get<GainersLosersResponse>("/market/gainers-losers");
 }
+
+export interface SectorStock {
+  ticker: string;
+  label: string;
+  mcap: number;
+  change_pct: number | null;
+}
+
+export interface SectorPerformance {
+  name: string;
+  change_pct: number | null;
+  stocks: SectorStock[];
+}
+
+export interface SectorPerformanceResponse {
+  sectors: SectorPerformance[];
+}
+
+export async function getSectorPerformance(): Promise<SectorPerformanceResponse> {
+  return api.get<SectorPerformanceResponse>("/market/sector-performance");
+}
