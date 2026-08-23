@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 
 export function HeroCta() {
   return (
-    <div className="mt-10 flex flex-col items-center gap-3 sm:flex-row">
+    <div className="mt-10 flex animate-in fade-in slide-in-from-bottom-4 duration-700 flex-col items-center gap-3 [animation-delay:300ms] sm:flex-row">
       <Button asChild size="lg" className="gap-2">
         <Link href="/register">
           Start trading free
