@@ -16,9 +16,6 @@ flowchart LR
     MKT & NSE --> RC[(Redis cache)]
 ```
 
-Every module folder has the same three code files: `router.py` (takes the
-request), `service.py` (does the work), `schemas.py` (answer shapes).
-
 ## Module index
 
 | Folder | What it does |
@@ -28,12 +25,13 @@ request), `service.py` (does the work), `schemas.py` (answer shapes).
 | [market-data/](market-data/overview.md) | Prices and candles from Yahoo |
 | [nse/](nse/overview.md) | NSE quotes, options, FII/DII flows |
 | [sentiment/](sentiment/overview.md) | News mood + chart mood scores |
+| [ml/](ml/overview.md) | Ensemble prediction + LSTM price forecast |
 | [analytics/](analytics/overview.md) | Indicators + support/resistance |
 | [signals/](signals/overview.md) | BUY / HOLD / SELL verdicts |
 | [smc/](smc/overview.md) | Smart-money chart zones |
 | [portfolio/](portfolio/overview.md) | Your watchlist |
 
-Coming later: ML, fusion, paper trading, alerts, backtesting, ledger
+Coming later: fusion, paper trading, alerts, backtesting, ledger
 (`plan/06-rebuild-plan.md`).
 
 ## Try it without the website

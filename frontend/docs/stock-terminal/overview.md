@@ -1,7 +1,7 @@
 # Stock Terminal — Overview
 
 **Plain words:** the heart of the app — the full page for one stock, e.g.
-`/app/stocks/RELIANCE.NS`. Everything about that stock on one screen.
+`/app/stocks/RELIANCE.NS`.
 
 ## What's on it
 
@@ -13,22 +13,23 @@
   [chart-layers.md](chart-layers.md).
 - **Verdict card** — BUY / HOLD / SELL badge, score gauge (−15…+15),
   confidence, rule chips, plain "Why" list.
-- **News & mood card** — headlines with tone badges plus two mood meters:
-  news mood (headline tone) and chart mood (indicator checks), each −1…+1.
+- **News & mood card** — headlines with tone badges plus two mood meters
+  (news tone, chart indicators), each −1…+1.
+- **AI prediction card** — ensemble verdict with probability gauge, 1/3/5-day
+  horizons, per-model accuracies, top features and the LSTM tomorrow-price
+  forecast. Tooltips explain every concept.
 - **Star button** — add/remove from your watchlist.
 
 ## Good to know
 
 Built on `lightweight-charts` (TradingView's open-source library) — fast
-pan/zoom on mouse or touch. Chart, verdict and levels share one cached copy
-of the candles, so they always agree.
+pan/zoom. Chart, verdict and levels share one cached copy of the candles.
 
 ## Where the code lives
 
-`frontend/app/(app)/app/stocks/[symbol]/` — page + components (chart-section,
-quote-view, verdict-card, watchlist-star). Shared renderer:
-`components/charts/price-chart.tsx`.
+`frontend/app/(app)/app/stocks/[symbol]/` — page + components beside it.
+Shared renderer: `components/charts/price-chart.tsx`.
 
 ## Coming later
 
-AI model tab, fusion verdict, analysis matrix.
+Fusion verdict, analysis matrix.
