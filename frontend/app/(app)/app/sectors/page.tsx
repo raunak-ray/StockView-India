@@ -2,17 +2,26 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { Search } from "lucide-react";
+import { ChevronRight, Search } from "lucide-react";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Loader } from "@/components/motion/loader";
+import { InfoTip } from "@/components/info-tip";
 import { SectorTreemap } from "./components/sector-treemap";
 import { useDebouncedValue } from "@/lib/hooks/use-debounce";
 import { useSectorPerformance } from "@/lib/hooks/use-nse";
 import type { SectorStock } from "@/lib/api/market";
 import { formatPct, toneBadgeClass } from "@/lib/utils/format";
 import { cn } from "@/lib/utils";
+
+const SEARCH_MS = 300;
+const STOCKS_PER_PAGE = 6;
 
 /** Horizontal performance bars — one per sector, signed colours. */
 function PerformanceBars({
@@ -29,9 +38,15 @@ function PerformanceBars({
     0.01,
   );
   return (
-    <Card>
+    <Card className="h-fit">
       <CardHeader className="pb-2">
-        <CardTitle className="text-sm">Sector performance today</CardTitle>
+        <CardTitle className="flex items-center gap-1.5 text-sm">
+          Performance today
+          <InfoTip label="What am I looking at?">
+            Each bar is one sector&apos;s average % move today, pointing right
+            for gains and left for losses. Click to select a sector.
+          </InfoTip>
+        </CardTitle>
       </CardHeader>
       <CardContent className="space-y-1">
         {[...sectors]
@@ -46,11 +61,11 @@ function PerformanceBars({
                 type="button"
                 onClick={() => onSelect(s.name)}
                 className={cn(
-                  "flex w-full items-center gap-3 rounded-lg px-2 py-1 text-left transition-colors hover:bg-muted",
+                  "flex w-full items-center gap-3 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-muted",
                   selected === s.name && "bg-muted",
                 )}
               >
-                <span className="w-32 shrink-0 truncate text-xs">{s.name}</span>
+                <span className="w-28 shrink-0 truncate text-xs">{s.name}</span>
                 <span className="relative flex h-4 flex-1 items-center">
                   <span
                     aria-hidden
@@ -80,9 +95,16 @@ function PerformanceBars({
   );
 }
 
-/** Constituents of the selected sector with debounced search filter. */
-function StockTable({ stocks }: { stocks: SectorStock[] }) {
+/** Stocks of the selected sector as paged cards, each linking to its page. */
+function StockCards({
+  sectorName,
+  stocks,
+}: {
+  sectorName: string;
+  stocks: SectorStock[];
+}) {
   const [query, setQuery] = useState("");
+  const [page, setPage] = useState(0);
   const debounced = useDebouncedValue(query.trim().toLowerCase(), SEARCH_MS);
 
   const filtered = useMemo(
@@ -96,82 +118,109 @@ function StockTable({ stocks }: { stocks: SectorStock[] }) {
     [stocks, debounced],
   );
 
-  if (stocks.length === 0) return null;
+  const pageCount = Math.max(1, Math.ceil(filtered.length / STOCKS_PER_PAGE));
+  const safePage = Math.min(page, pageCount - 1);
+  const pageStocks = filtered.slice(
+    safePage * STOCKS_PER_PAGE,
+    (safePage + 1) * STOCKS_PER_PAGE,
+  );
 
   return (
-    <Card>
+    <Card className="h-fit">
       <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 space-y-0 pb-3">
-        <CardTitle className="text-sm">Constituents</CardTitle>
+        <CardTitle className="text-sm">
+          {sectorName}
+          <span className="ml-2 font-mono text-xs font-normal text-muted-foreground">
+            {filtered.length} stocks
+          </span>
+        </CardTitle>
         <div className="relative w-52">
           <Search className="absolute top-1/2 left-3 size-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setPage(0);
+            }}
             placeholder="Filter stocks…"
             className="h-8 pl-9 font-mono text-xs"
-            aria-label="Filter sector constituents"
+            aria-label="Filter sector stocks"
           />
         </div>
       </CardHeader>
-      <CardContent className="overflow-x-auto p-0">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-border bg-muted/50 font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
-              <th className="px-4 py-2 text-left">Stock</th>
-              <th className="px-4 py-2 text-left">Ticker</th>
-              <th className="px-4 py-2 text-right">M-cap (₹ Cr)</th>
-              <th className="px-4 py-2 text-right">Change</th>
-              <th className="px-4 py-2 text-right" />
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map((s) => (
-              <tr
-                key={s.ticker}
-                className="border-b border-border/50 transition-colors hover:bg-muted/40"
-              >
-                <td className="px-4 py-2">{s.label}</td>
-                <td className="px-4 py-2 font-mono text-xs text-muted-foreground">
-                  {s.ticker.replace(".NS", "")}
-                </td>
-                <td className="px-4 py-2 text-right font-mono text-xs">
-                  {s.mcap.toLocaleString("en-IN")}
-                </td>
-                <td className="px-4 py-2 text-right">
-                  <span
-                    className={cn(
-                      "inline-flex rounded-full border px-2 py-0.5 font-mono text-[11px] font-semibold",
-                      toneBadgeClass[(s.change_pct ?? 0) >= 0 ? "up" : "down"],
-                    )}
-                  >
-                    {formatPct(s.change_pct)}
-                  </span>
-                </td>
-                <td className="px-4 py-2 text-right">
+      <CardContent className="p-0">
+        {filtered.length === 0 ? (
+          <p className="py-10 text-center text-sm text-muted-foreground">
+            No stocks match “{query}”.
+          </p>
+        ) : (
+          <>
+            <div className="grid gap-3 p-4 pt-1 sm:grid-cols-2">
+              {pageStocks.map((s) => {
+                const up = (s.change_pct ?? 0) >= 0;
+                return (
                   <Link
+                    key={s.ticker}
                     href={`/app/stocks/${encodeURIComponent(s.ticker)}`}
-                    className="font-mono text-xs text-primary underline-offset-4 hover:underline"
+                    className="group flex items-center justify-between gap-3 rounded-xl border border-border bg-card px-4 py-3 transition-colors hover:border-primary/40"
                   >
-                    Open →
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium">{s.label}</p>
+                      <p className="mt-0.5 font-mono text-[11px] text-muted-foreground">
+                        {s.ticker.replace(".NS", "")} · ₹
+                        {s.mcap.toLocaleString("en-IN")} Cr cap
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <span
+                        className={cn(
+                          "rounded-full border px-2 py-0.5 font-mono text-[11px] font-semibold",
+                          toneBadgeClass[up ? "up" : "down"],
+                        )}
+                      >
+                        {formatPct(s.change_pct)}
+                      </span>
+                      <ChevronRight className="size-4 text-muted-foreground/50 transition-transform group-hover:translate-x-0.5 group-hover:text-foreground" />
+                    </div>
                   </Link>
-                </td>
-              </tr>
-            ))}
-            {filtered.length === 0 && (
-              <tr>
-                <td colSpan={5} className="py-8 text-center text-sm text-muted-foreground">
-                  No constituents match “{debounced}”.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+                );
+              })}
+            </div>
+            {pageCount > 1 ? (
+              <div className="flex items-center justify-between border-t border-border px-4 py-3">
+                <span className="font-mono text-xs text-muted-foreground">
+                  Page {safePage + 1} of {pageCount}
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    aria-label="Previous page"
+                    disabled={safePage === 0}
+                    onClick={() => setPage((p) => Math.max(0, p - 1))}
+                    className="text-xs text-primary underline-offset-4 transition-colors hover:underline disabled:pointer-events-none disabled:opacity-40 disabled:no-underline"
+                  >
+                    Prev
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Next page"
+                    disabled={safePage >= pageCount - 1}
+                    onClick={() =>
+                      setPage((p) => Math.min(pageCount - 1, p + 1))
+                    }
+                    className="text-xs text-primary underline-offset-4 transition-colors hover:underline disabled:pointer-events-none disabled:opacity-40 disabled:no-underline"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            ) : null}
+          </>
+        )}
       </CardContent>
     </Card>
   );
 }
-
-const SEARCH_MS = 300;
 
 export default function SectorsPage() {
   const { data, isLoading, isError, refetch } = useSectorPerformance();
@@ -189,15 +238,19 @@ export default function SectorsPage() {
       <div>
         <h1 className="text-2xl font-semibold">Sectors — NIFTY 50</h1>
         <p className="mt-0.5 text-sm text-muted-foreground">
-          Market-cap weighted view of today&apos;s sector moves.
+          Today&apos;s sector moves at a glance. Click any block or bar to see
+          its stocks.
         </p>
       </div>
 
       {isLoading ? (
-        <Skeleton className="h-80 w-full rounded-xl" />
+        <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-border py-24 text-muted-foreground">
+          <Loader variant="dots" size={28} label="Loading sector data" />
+          <p className="text-sm">Loading sector data…</p>
+        </div>
       ) : isError ? (
         <div className="rounded-xl border border-dashed border-border py-16 text-center">
-          <p className="text-sm font-medium">Sector feed unavailable right now</p>
+          <p className="text-sm font-medium">Sector data unavailable right now</p>
           <button
             type="button"
             onClick={() => refetch()}
@@ -211,25 +264,27 @@ export default function SectorsPage() {
           <SectorTreemap
             sectors={sectors}
             selected={active}
-            onSelect={(name) =>
-              setSelected((cur) => (cur === name ? null : name))
-            }
+            onSelect={setSelected}
           />
-          <PerformanceBars
-            sectors={sectors}
-            selected={active}
-            onSelect={setActiveName(setSelected)}
-          />
-          {activeSector && <StockTable stocks={activeSector.stocks} />}
+          <div className="grid gap-4 lg:grid-cols-5">
+            <div className="lg:col-span-2">
+              <PerformanceBars
+                sectors={sectors}
+                selected={active}
+                onSelect={setSelected}
+              />
+            </div>
+            <div className="lg:col-span-3">
+              {activeSector ? (
+                <StockCards
+                  sectorName={activeSector.name}
+                  stocks={activeSector.stocks}
+                />
+              ) : null}
+            </div>
+          </div>
         </>
       )}
     </div>
   );
-}
-
-// Small helper keeps the bars' select behaviour explicit.
-function setActiveName(
-  setSelected: React.Dispatch<React.SetStateAction<string | null>>,
-) {
-  return (name: string) => setSelected(name);
 }
