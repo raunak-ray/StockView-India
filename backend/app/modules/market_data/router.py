@@ -11,6 +11,7 @@ from app.modules.market_data.schemas import (
     MarketSummaryResponse,
     Mover,
     QuoteResponse,
+    SectorPerformanceResponse,
 )
 
 router = APIRouter(
@@ -54,6 +55,11 @@ async def info(
 async def market_summary() -> MarketSummaryResponse:
     indices = await service.get_market_summary()
     return MarketSummaryResponse(indices=[IndexQuote(**i) for i in indices])
+
+
+@router.get("/sector-performance", response_model=SectorPerformanceResponse)
+async def sector_performance() -> SectorPerformanceResponse:
+    return SectorPerformanceResponse(**await service.get_sector_performance())
 
 
 @router.get("/gainers-losers", response_model=GainersLosersResponse)

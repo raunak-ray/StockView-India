@@ -57,3 +57,20 @@ class Mover(BaseModel):
 class GainersLosersResponse(BaseModel):
     gainers: list[Mover]
     losers: list[Mover]
+
+
+class SectorStock(BaseModel):
+    ticker: str
+    label: str
+    mcap: int
+    change_pct: float | None = None
+
+
+class SectorPerformance(BaseModel):
+    name: str
+    change_pct: float | None = None
+    stocks: list[SectorStock]
+
+
+class SectorPerformanceResponse(BaseModel):
+    sectors: list[SectorPerformance]

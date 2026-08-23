@@ -351,3 +351,76 @@ async def get_market_summary() -> list[dict]:
 
 async def get_gainers_losers() -> dict[str, list[dict]]:
     return await _with_cache("md:movers", MOVERS_TTL, _fetch_gainers_losers)
+
+
+# ── NIFTY 50 sector performance (row 26; heatmap port app.py:7044) ───────────
+SECTOR_TTL = 300  # 50 tickers per call — keep upstream load low
+
+
+def _sector_performance_impl() -> dict:
+    """Per-sector % change for the sectors treemap/bars.
+
+    Uses the verbatim-extracted _NIFTY50_STOCKS asset; one batched yfinance
+    download for all unique constituents, simple mean change per sector
+    (same aggregation as app.py:7156-7203).
+    """
+    import yfinance as yf
+
+    from app.modules.instruments import service as instruments
+
+    sector_map = instruments.nifty50_sectors()
+    tickers = sorted({t for stocks in sector_map.values() for t, _, _ in stocks})
+
+    close = yf.download(
+        tickers, period="5d", interval="1d", progress=False, auto_adjust=True
+    )
+    if isinstance(close.columns, pd.MultiIndex):
+        close = close["Close"]
+    if close is None or len(close) < 2:
+        raise _upstream("Sector feed unavailable.")
+
+    changes: dict[str, float] = {}
+    prev, last = close.iloc[-2], close.iloc[-1]
+    for ticker in tickers:
+        try:
+            p0, p1 = float(prev[ticker]), float(last[ticker])
+            if pd.notna(p0) and pd.notna(p1) and p0 > 0:
+                changes[ticker] = round((p1 / p0 - 1) * 100, 2)
+        except (KeyError, TypeError, ValueError):
+            continue
+
+    if not changes:
+        raise _upstream("Sector feed unavailable.")
+
+    sectors_out = []
+    for name, stocks in sector_map.items():
+        members = []
+        pct_values = []
+        for ticker, label, mcap in stocks:
+            pct = changes.get(ticker)
+            members.append(
+                {"ticker": ticker, "label": label, "mcap": mcap,
+                 "change_pct": pct}
+            )
+            if pct is not None:
+                pct_values.append(pct)
+        sectors_out.append(
+            {
+                "name": name,
+                "change_pct": round(sum(pct_values) / len(pct_values), 2)
+                if pct_values
+                else None,
+                "stocks": members,
+            }
+        )
+
+    return {"sectors": sectors_out}
+
+
+async def get_sector_performance() -> dict:
+    cached = await cache_get("md:sectors")
+    if cached is not None:
+        return cached
+    result = await anyio.to_thread.run_sync(_sector_performance_impl)
+    await cache_set("md:sectors", result, SECTOR_TTL)
+    return result
