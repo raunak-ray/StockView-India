@@ -20,104 +20,104 @@
  * `.dark` — both selectors have equal specificity, so source order decides
  * which palette wins when <html class="dark"> is set by next-themes.
  *
- * Semantic discipline: teal = up/positive, red = down/negative,
- * gold = hold/alert, blue = info, purple = AI/ML.
+ * Semantic discipline: emerald = up/positive, red = down/negative,
+ * gold = hold/alert, blue = info, cyan = AI/ML.
  * Semantic colors are theme-aware: deeper shades in light mode for
  * readable contrast on white, brighter shades in dark mode.
  */
 
-/* ── Light theme ─────────────────────────────────────────────────────────── */
+/* ── Light theme (cool porcelain) ────────────────────────────────────────── */
 :root {
   --radius: 0.625rem;
 
-  --background: #f5f7fa;
-  --foreground: #1a1f2e;
+  --background: #f6f8fb;
+  --foreground: #101828;
   --card: #ffffff;
-  --card-foreground: #1a1f2e;
+  --card-foreground: #101828;
   --popover: #ffffff;
-  --popover-foreground: #1a1f2e;
-  --primary: #0f766e; /* deep teal — white text passes contrast on light bg */
+  --popover-foreground: #101828;
+  --primary: #047857; /* emerald-700 — white text passes contrast on light bg */
   --primary-foreground: #ffffff;
-  --secondary: #e4e8ef;
-  --secondary-foreground: #1a1f2e;
-  --muted: #eef1f6;
-  --muted-foreground: #57606a;
-  --accent: #eef1f6;
-  --accent-foreground: #1a1f2e;
+  --secondary: #e9eef6;
+  --secondary-foreground: #101828;
+  --muted: #eef2f8;
+  --muted-foreground: #5b6577;
+  --accent: #e9eef6;
+  --accent-foreground: #101828;
   --destructive: #dc2626;
-  --border: #d0d7de;
-  --input: #e4e8ef;
-  --ring: rgb(15 118 110 / 0.35);
+  --border: #d9e1ec;
+  --input: #e9eef6;
+  --ring: rgb(4 120 87 / 0.35);
 
-  --chart-1: #0f766e;
+  --chart-1: #047857;
   --chart-2: #dc2626;
   --chart-3: #b45309;
   --chart-4: #2563eb;
-  --chart-5: #7c3aed;
+  --chart-5: #0e7490;
 
   --sidebar: #ffffff;
-  --sidebar-foreground: #1a1f2e;
-  --sidebar-primary: #0f766e;
+  --sidebar-foreground: #101828;
+  --sidebar-primary: #047857;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #eef1f6;
-  --sidebar-accent-foreground: #1a1f2e;
-  --sidebar-border: #d0d7de;
-  --sidebar-ring: rgb(15 118 110 / 0.35);
+  --sidebar-accent: #eef2f8;
+  --sidebar-accent-foreground: #101828;
+  --sidebar-border: #d9e1ec;
+  --sidebar-ring: rgb(4 120 87 / 0.35);
 
   /* Semantic market colors (readable on light surfaces) */
-  --up: #0f766e;
-  --up-strong: #0d5f59;
+  --up: #047857;
+  --up-strong: #065f46;
   --down: #dc2626;
   --gold: #b45309;
   --info: #2563eb;
-  --ai: #7c3aed;
+  --ai: #0e7490;
   --chart-grid: #e2e6ee;
 }
 
-/* ── Dark theme (product default) ────────────────────────────────────────── */
+/* ── Dark theme (midnight navy, product default) ─────────────────────────── */
 .dark {
-  --background: #0d1117;
-  --foreground: #e6edf3;
-  --card: #161b22;
-  --card-foreground: #e6edf3;
-  --popover: #161b22;
-  --popover-foreground: #e6edf3;
-  --primary: #26a69a;
-  --primary-foreground: #ffffff;
-  --secondary: #21262d;
-  --secondary-foreground: #e6edf3;
-  --muted: #1c2128;
-  --muted-foreground: #8b949e;
-  --accent: #21262d;
-  --accent-foreground: #e6edf3;
+  --background: #080d19;
+  --foreground: #e9eef8;
+  --card: #0e1526;
+  --card-foreground: #e9eef8;
+  --popover: #0e1526;
+  --popover-foreground: #e9eef8;
+  --primary: #34d399; /* emerald-400 accent — dark text keeps high contrast */
+  --primary-foreground: #022c22;
+  --secondary: #182136;
+  --secondary-foreground: #e9eef8;
+  --muted: #131b2e;
+  --muted-foreground: #8b96ac;
+  --accent: #182136;
+  --accent-foreground: #e9eef8;
   --destructive: #ef5350;
-  --border: #30363d;
-  --input: #21262d;
-  --ring: rgb(38 166 154 / 0.25);
+  --border: #1f2a44;
+  --input: #182136;
+  --ring: rgb(52 211 153 / 0.3);
 
-  --chart-1: #26a69a;
+  --chart-1: #34d399;
   --chart-2: #ef5350;
   --chart-3: #d29922;
   --chart-4: #1a7fd4;
-  --chart-5: #8957e5;
+  --chart-5: #22d3ee;
 
-  --sidebar: #161b22;
-  --sidebar-foreground: #e6edf3;
-  --sidebar-primary: #26a69a;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #1c2128;
-  --sidebar-accent-foreground: #e6edf3;
-  --sidebar-border: #30363d;
-  --sidebar-ring: rgb(38 166 154 / 0.25);
+  --sidebar: #0b1120;
+  --sidebar-foreground: #e9eef8;
+  --sidebar-primary: #34d399;
+  --sidebar-primary-foreground: #022c22;
+  --sidebar-accent: #131b2e;
+  --sidebar-accent-foreground: #e9eef8;
+  --sidebar-border: #1f2a44;
+  --sidebar-ring: rgb(52 211 153 / 0.3);
 
   /* Semantic market colors (bright enough on dark surfaces) */
-  --up: #26a69a;
-  --up-strong: #2fb8ab;
+  --up: #34d399;
+  --up-strong: #6ee7b7;
   --down: #ef5350;
   --gold: #d29922;
   --info: #1a7fd4;
-  --ai: #8957e5;
-  --chart-grid: #1e2535;
+  --ai: #22d3ee;
+  --chart-grid: #16203a;
 }
 
 /* Expose semantic colors + fonts as Tailwind utilities
@@ -183,5 +183,84 @@
   }
   html {
     @apply font-sans;
+  }
+}
+
+/* ── Landing page animations (all subtle, ~6–12s loops) ──────────────────── */
+
+/* Line charts "drawing" themselves: stroke dashes sliding forward */
+@keyframes dash-flow {
+  to {
+    stroke-dashoffset: -32;
+  }
+}
+.animate-dash-flow {
+  stroke-dasharray: 6 10;
+  animation: dash-flow 4s linear infinite;
+}
+
+/* Nodes / dots breathing (opacity only — cheap) */
+@keyframes soft-pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+.animate-soft-pulse {
+  animation: soft-pulse 2.6s ease-in-out infinite;
+}
+
+/* Gentle vertical float for hero/bento accents */
+@keyframes float-y {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+.animate-float-y {
+  animation: float-y 7s ease-in-out infinite;
+}
+
+/* Footer top edge: a light beam sweeping across */
+@keyframes beam-x {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+.animate-beam-x {
+  background-size: 200% 100%;
+  animation: beam-x 9s linear infinite;
+}
+
+/* Slow vertical drift for glow blobs */
+@keyframes drift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(0, -4%, 0) scale(1.06);
+  }
+}
+.animate-drift {
+  animation: drift 12s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-dash-flow,
+  .animate-soft-pulse,
+  .animate-float-y,
+  .animate-beam-x,
+  .animate-drift {
+    animation: none;
   }
 }
