@@ -13,4 +13,7 @@ export const DEFAULT_OPTION_SYMBOL = "NIFTY";
 /** Rows per page in the options chain table. */
 export const CHAIN_PAGE_SIZE = 10;
 
+/** Session cards per page in the FII/DII tab. */
+export const SESSIONS_PAGE_SIZE = 4;
+
 export const SEARCH_DEBOUNCE_MS = 300;

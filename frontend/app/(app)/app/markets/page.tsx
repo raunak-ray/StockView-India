@@ -1,6 +1,7 @@
 "use client";
 
-import { Card, CardContent } from "@/components/ui/card";
+import { Activity, CandlestickChart, Landmark, Scale } from "lucide-react";
+
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AdvancesDeclinesTab } from "./components/advances-declines-tab";
 import { FiiDiiTab } from "./components/fii-dii-tab";
@@ -19,11 +20,26 @@ export default function MarketsPage() {
       </div>
 
       <Tabs defaultValue="quote">
-        <TabsList aria-label="Market data sections">
-          <TabsTrigger value="quote">📊 NSE Quote</TabsTrigger>
-          <TabsTrigger value="fii-dii">🏛 FII / DII</TabsTrigger>
-          <TabsTrigger value="breadth">📉 Advances/Declines</TabsTrigger>
-          <TabsTrigger value="options">⚖ Options / PCR</TabsTrigger>
+        <TabsList
+          aria-label="Market data sections"
+          className="grid h-auto w-full grid-cols-2 gap-1 sm:grid-cols-4"
+        >
+          <TabsTrigger value="quote" className="gap-1.5 py-2">
+            <CandlestickChart className="size-4" />
+            NSE Quote
+          </TabsTrigger>
+          <TabsTrigger value="fii-dii" className="gap-1.5 py-2">
+            <Landmark className="size-4" />
+            FII / DII
+          </TabsTrigger>
+          <TabsTrigger value="breadth" className="gap-1.5 py-2">
+            <Activity className="size-4" />
+            Advances / Declines
+          </TabsTrigger>
+          <TabsTrigger value="options" className="gap-1.5 py-2">
+            <Scale className="size-4" />
+            Options / PCR
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="quote">
@@ -39,13 +55,6 @@ export default function MarketsPage() {
           <OptionsTab />
         </TabsContent>
       </Tabs>
-
-      <Card className="border-dashed bg-transparent shadow-none">
-        <CardContent className="px-4 py-3 text-center text-xs text-muted-foreground">
-          Data via NSE India with layered public fallbacks · cached for a few
-          minutes between refreshes.
-        </CardContent>
-      </Card>
     </div>
   );
 }

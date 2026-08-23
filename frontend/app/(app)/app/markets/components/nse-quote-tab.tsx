@@ -6,6 +6,7 @@ import { Search, TrendingUp } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { InfoTip } from "@/components/info-tip";
 import {
   useInstrumentSearch,
   type Instrument,
@@ -59,20 +60,31 @@ function QuoteCard({ quote }: { quote: NseQuote }) {
 
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
           {[
-            ["Open", formatINR(quote.open)],
-            ["Prev close", formatINR(quote.prev_close)],
-            ["Day high", formatINR(quote.day_high)],
-            ["Day low", formatINR(quote.day_low)],
-            ["52W high", formatINR(quote.week_high)],
-            ["52W low", formatINR(quote.week_low)],
-            ["Volume", formatCompact(quote.volume)],
-            ["VWAP", formatINR(quote.vwap)],
-          ].map(([label, value]) => (
+            ["Open", formatINR(quote.open), undefined],
+            ["Prev close", formatINR(quote.prev_close), undefined],
+            ["Day high", formatINR(quote.day_high), undefined],
+            ["Day low", formatINR(quote.day_low), undefined],
+            ["52W high", formatINR(quote.week_high), "The highest price traded in the past year."],
+            ["52W low", formatINR(quote.week_low), "The lowest price traded in the past year."],
+            ["Volume", formatCompact(quote.volume), "Total shares traded today."],
+            [
+              "VWAP",
+              formatINR(quote.vwap),
+              "Volume-Weighted Average Price — the day's average price weighted by how many shares traded at each level. A rough 'fair price' for the day: above it = buyers in control.",
+            ],
+          ].map(([label, value, tip]) => (
             <div
               key={label}
               className="flex items-center justify-between rounded-lg bg-muted/60 px-3 py-2"
             >
-              <span className="text-xs text-muted-foreground">{label}</span>
+              <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                {label}
+                {tip ? (
+                  <InfoTip label={`What is ${label}?`}>
+                    <span className="max-w-52">{tip}</span>
+                  </InfoTip>
+                ) : null}
+              </span>
               <span className="font-mono text-sm font-medium">{value}</span>
             </div>
           ))}
@@ -135,9 +147,10 @@ export function NseQuoteTab() {
       {/* Quote card */}
       {!selected && !debounced && (
         <div className="rounded-xl border border-dashed border-border py-16 text-center">
-          <p className="text-sm font-medium">Search to see a live NSE quote</p>
+          <Search className="mx-auto size-6 text-muted-foreground/50" />
+          <p className="mt-3 text-sm font-medium">Search to see a live NSE quote</p>
           <p className="mt-1 text-sm text-muted-foreground">
-            Direct NSE feed with automatic fallbacks.
+            Try RELIANCE, TCS or HDFCBANK.
           </p>
         </div>
       )}

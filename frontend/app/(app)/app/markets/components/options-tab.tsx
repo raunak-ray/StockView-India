@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
 
 import {
   Card,
@@ -10,7 +9,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Loader } from "@/components/motion/loader";
+import { InfoTip } from "@/components/info-tip";
 import { useDebouncedValue } from "@/lib/hooks/use-debounce";
 import { useOptionChain } from "@/lib/hooks/use-nse";
 import { formatCompact, formatNumber } from "@/lib/utils/format";
@@ -22,6 +22,7 @@ import {
   OPTION_INDICES,
   SEARCH_DEBOUNCE_MS,
 } from "../constants";
+import { Pager } from "./pager";
 
 function ToggleChip({
   active,
@@ -49,6 +50,30 @@ function ToggleChip({
     >
       {children}
     </button>
+  );
+}
+
+function HeadCell({
+  children,
+  tip,
+  align = "right",
+}: {
+  children: React.ReactNode;
+  tip: string;
+  align?: "left" | "right";
+}) {
+  return (
+    <th
+      className={cn(
+        "px-4 py-2 font-mono text-[11px] font-medium uppercase tracking-wider text-muted-foreground",
+        align === "right" ? "text-right" : "text-left",
+      )}
+    >
+      <span className={cn("inline-flex items-center gap-1", align === "right" && "flex-row-reverse")}>
+        {children}
+        <InfoTip label={`What is ${children}?`}>{tip}</InfoTip>
+      </span>
+    </th>
   );
 }
 
@@ -90,6 +115,15 @@ export function OptionsTab() {
     (safePage + 1) * CHAIN_PAGE_SIZE,
   );
 
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center gap-3 py-20 text-muted-foreground">
+        <Loader variant="dots" size={28} label="Loading option chain" />
+        <p className="text-sm">Loading option chain…</p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
       {/* Symbol picker: index chips + optional custom equity */}
@@ -125,20 +159,29 @@ export function OptionsTab() {
       {/* Summary cards */}
       <div className="grid grid-cols-3 gap-4">
         {[
-          ["Spot", spot > 0 ? formatNumber(spot) : "—"],
-          ["PCR (OI)", data?.pcr != null ? data.pcr.toFixed(3) : "—"],
-          ["Max pain", data?.max_pain != null ? formatNumber(data.max_pain) : "—"],
-        ].map(([label, value]) => (
+          {
+            label: "Spot",
+            value: spot > 0 ? formatNumber(spot) : "—",
+            tip: "The current price of the index or stock that the options are written on.",
+          },
+          {
+            label: "PCR (OI)",
+            value: data?.pcr != null ? data.pcr.toFixed(3) : "—",
+            tip: "Put-Call ratio: total puts divided by total calls. Above 1 = more downside bets (fear); below 1 = more upside bets (greed).",
+          },
+          {
+            label: "Max pain",
+            value: data?.max_pain != null ? formatNumber(data.max_pain) : "—",
+            tip: "The price where the most option buyers lose money — the level option writers profit most at. Price often drifts toward it near expiry.",
+          },
+        ].map(({ label, value, tip }) => (
           <Card key={label}>
             <CardContent className="p-4 text-center">
-              <p className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
+              <p className="flex items-center justify-center gap-1 font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
                 {label}
+                <InfoTip label={`What is ${label}?`}>{tip}</InfoTip>
               </p>
-              {isLoading ? (
-                <Skeleton className="mx-auto mt-1 h-7 w-20" />
-              ) : (
-                <p className="mt-1 font-mono text-lg font-semibold">{value}</p>
-              )}
+              <p className="mt-1 font-mono text-lg font-semibold">{value}</p>
             </CardContent>
           </Card>
         ))}
@@ -164,22 +207,26 @@ export function OptionsTab() {
               className="h-8 w-32 font-mono text-xs"
               aria-label="Filter strikes"
             />
-            <ToggleChip
-              label="Show only strikes near the money"
-              active={nearAtm}
-              onClick={() => {
-                setNearAtm((v) => !v);
-                setPage(0);
-              }}
-            >
-              Near ATM
-            </ToggleChip>
+            <span className="flex items-center gap-1.5">
+              <ToggleChip
+                label="Show only strikes near the money"
+                active={nearAtm}
+                onClick={() => {
+                  setNearAtm((v) => !v);
+                  setPage(0);
+                }}
+              >
+                Near ATM
+              </ToggleChip>
+              <InfoTip label="What is Near ATM?">
+                Only show strikes closest to the current price (about 10 on
+                each side) — where most trading happens. ATM = at the money.
+              </InfoTip>
+            </span>
           </div>
         </CardHeader>
         <CardContent className="overflow-x-auto p-0">
-          {isLoading ? (
-            <Skeleton className="m-4 h-72 w-[calc(100%-2rem)] rounded-lg" />
-          ) : isError || rows.length === 0 ? (
+          {isError || rows.length === 0 ? (
             <div className="py-14 text-center text-sm text-muted-foreground">
               Option chain unavailable for this symbol.
             </div>
@@ -187,14 +234,28 @@ export function OptionsTab() {
             <>
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-border bg-muted/50 font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
-                    <th className="px-4 py-2 text-left">Strike</th>
-                    <th className="px-4 py-2 text-right">CE OI</th>
-                    <th className="px-4 py-2 text-right">CE ΔOI</th>
-                    <th className="px-4 py-2 text-right">CE LTP</th>
-                    <th className="px-4 py-2 text-right">PE LTP</th>
-                    <th className="px-4 py-2 text-right">PE ΔOI</th>
-                    <th className="px-4 py-2 text-right">PE OI</th>
+                  <tr className="border-b border-border bg-muted/50">
+                    <HeadCell tip="The price level at which the option can be exercised.">
+                      Strike
+                    </HeadCell>
+                    <HeadCell tip="CE = call option (a bet the price rises). OI = open interest, contracts still open.">
+                      CE OI
+                    </HeadCell>
+                    <HeadCell tip="Change in open interest today — builds show new positions, unwinds show exits.">
+                      CE ΔOI
+                    </HeadCell>
+                    <HeadCell tip="Last traded price of this call, in ₹.">
+                      CE LTP
+                    </HeadCell>
+                    <HeadCell tip="Last traded price of this put, in ₹.">
+                      PE LTP
+                    </HeadCell>
+                    <HeadCell tip="Change in open interest today for this put.">
+                      PE ΔOI
+                    </HeadCell>
+                    <HeadCell tip="PE = put option (a bet the price falls). OI = open interest, contracts still open.">
+                      PE OI
+                    </HeadCell>
                   </tr>
                 </thead>
                 <tbody>
@@ -223,31 +284,13 @@ export function OptionsTab() {
                 </tbody>
               </table>
 
-              {/* Pagination */}
-              <div className="flex items-center justify-between px-4 py-3">
-                <span className="font-mono text-xs text-muted-foreground">
-                  Page {safePage + 1} of {pageCount}
-                </span>
-                <div className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    aria-label="Previous page"
-                    disabled={safePage === 0}
-                    onClick={() => setPage((p) => Math.max(0, p - 1))}
-                    className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
-                  >
-                    <ChevronLeft className="size-4" />
-                  </button>
-                  <button
-                    type="button"
-                    aria-label="Next page"
-                    disabled={safePage >= pageCount - 1}
-                    onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
-                    className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
-                  >
-                    <ChevronRight className="size-4" />
-                  </button>
-                </div>
+              <div className="border-t border-border">
+                <Pager
+                  page={safePage}
+                  pageCount={pageCount}
+                  onPage={setPage}
+                  hint={`${visibleRows.length} strikes`}
+                />
               </div>
             </>
           )}
