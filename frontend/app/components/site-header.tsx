@@ -3,6 +3,8 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 
+import { NAV_LINKS } from "../constants";
+
 export function SiteHeader() {
   return (
     <header className="sticky top-0 z-20 border-b border-border bg-background/80 backdrop-blur">
@@ -14,12 +16,11 @@ export function SiteHeader() {
           <span className="text-sm font-semibold">StockView India</span>
         </Link>
         <nav className="ml-auto hidden items-center gap-5 text-sm text-muted-foreground md:flex">
-          <Link href="#features" className="hover:text-foreground">
-            Features
-          </Link>
-          <Link href="#how" className="hover:text-foreground">
-            How it works
-          </Link>
+          {NAV_LINKS.map((link) => (
+            <Link key={link.href} href={link.href} className="hover:text-foreground">
+              {link.label}
+            </Link>
+          ))}
         </nav>
         <div className="ml-auto flex items-center gap-2 md:ml-0">
           <ThemeToggle />

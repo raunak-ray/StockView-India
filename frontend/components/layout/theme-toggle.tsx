@@ -6,8 +6,9 @@ import { Moon, Sun } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 /** Light/dark switch. Dark is the product default (plan/03 §0.5).
- *  Icons are swapped purely via CSS `dark:` variants, so SSR output
- *  matches the first client render (no mounted gate needed). */
+ *  Icons are swapped purely via CSS `dark:` variants and the label stays
+ *  static, so SSR output matches the first client render (no mounted gate,
+ *  no hydration mismatch from `resolvedTheme` arriving only client-side). */
 export function ThemeToggle() {
   const { resolvedTheme, setTheme } = useTheme();
   const isDark = resolvedTheme === "dark";
@@ -16,11 +17,7 @@ export function ThemeToggle() {
     <Button
       variant="ghost"
       size="icon"
-      aria-label={
-        resolvedTheme
-          ? `Switch to ${isDark ? "light" : "dark"} mode`
-          : ""
-      }
+      aria-label="Toggle theme"
       onClick={() => setTheme(isDark ? "light" : "dark")}
     >
       <Sun className="size-4 scale-100 rotate-0 transition-transform duration-200 dark:scale-0 dark:-rotate-90" />
