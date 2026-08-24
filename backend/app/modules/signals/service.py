@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+from typing import Any
+
 import anyio.to_thread
+import numpy as np
 import pandas as pd
 
 from app.modules.analytics.service import add_indicators, candles_to_df
 from app.modules.market_data import service as market_data
+from app.modules.market_data.service import Interval, Period
 
 # ── Signal engine (verbatim port of app.py:2170-2248) ────────────────────────
 # Operates on the indicator-enriched frame from analytics.add_indicators.
@@ -196,5 +200,227 @@ async def get_signal(symbol: str, interval, period) -> dict:
         result = compute_signal(df)
         result["markers"] = generate_markers(df)
         return result
+
+    return await anyio.to_thread.run_sync(compute)
+
+
+# ── 3-Layer Signal Fusion (verbatim port of app.py:3391-3455) ──────────────
+# Weights: Technical 45% + ML 40% + News 15% — same numbers as app.py:3411-3413.
+# Graceful degradation: if ML or news is unavailable, the remaining layers
+# are re-weighted proportionally so the result is still meaningful.
+
+
+_TECH_W = 0.45
+_ML_W = 0.40
+_NEWS_W = 0.15
+
+
+def _normalise_label(label: str) -> str:
+    """Map any label to BULLISH / BEARISH / NEUTRAL."""
+    upper = label.strip().upper()
+    if upper in ("BULLISH", "POSITIVE", "UP"):
+        return "BULLISH"
+    if upper in ("BEARISH", "NEGATIVE", "DOWN"):
+        return "BEARISH"
+    return "NEUTRAL"
+
+
+def compute_fusion(
+    tech_result: dict,
+    ml_result: dict[str, Any] | None,
+    news_result: dict[str, Any] | None,
+) -> dict:
+    """Blend technical + ML + news into a single fused verdict.
+
+    Parameters
+    ----------
+    tech_result:
+        Output of ``compute_signal`` (verdict, score, confidence, signals, reasons).
+    ml_result:
+        Full ``run_ml`` output dict, or ``None`` if unavailable.
+    news_result:
+        Output of ``get_sentiment_score`` (score, label, detail), or ``None``.
+    """
+    # ── Technical layer ──────────────────────────────────────────────────
+    # compute_signal returns an integer score (typically −18..+18).
+    # Normalise to −1..+1 by dividing by a reasonable max.
+    tech_score_raw = float(tech_result.get("score", 0))
+    ts_score = float(np.clip(tech_score_raw / 12.0, -1.0, 1.0))
+    ts_label = "BULLISH" if tech_score_raw >= 5 else "BEARISH" if tech_score_raw <= -5 else "NEUTRAL"
+    ts_signals = tech_result.get("signals", [])
+    ts_reasons = tech_result.get("reasons", [])
+
+    # ── ML layer ─────────────────────────────────────────────────────────
+    ml_available = False
+    ml_score = 0.0
+    ml_label = "NEUTRAL"
+    ml_up_prob = 50.0
+    ml_confidence = 50.0
+    ml_horizon: dict[str, Any] = {}
+    ml_model_accs: dict[str, float] = {}
+    ml_conf_tier: dict[str, str] = {}
+    ml_walk_fwd = 0.0
+    ml_active_models = ""
+
+    if ml_result is not None:
+        ml_available = True
+        ml_up_prob = float(ml_result.get("up_prob", 50.0))
+        ml_score = (ml_up_prob - 50.0) / 50.0  # −1..+1
+        ml_label = _normalise_label(ml_result.get("direction", "neutral"))
+        ml_confidence = float(ml_result.get("confidence", 50.0))
+        ml_horizon = ml_result.get("horizon", {})
+        ml_model_accs = ml_result.get("model_accs", {})
+        ml_conf_tier = ml_result.get("conf_tier", {})
+        ml_walk_fwd = float(ml_result.get("walk_fwd_acc", 0.0))
+        ml_active_models = ml_result.get("active_models", "")
+
+    # ── News layer ───────────────────────────────────────────────────────
+    news_available = False
+    ns_score = 0.0
+    ns_label = "NEUTRAL"
+    ns_detail: list[dict] = []
+
+    if news_result is not None:
+        ns_score = float(news_result.get("score", 0.0))
+        ns_label = _normalise_label(news_result.get("label", "neutral"))
+        ns_detail = news_result.get("detail", [])
+        if ns_score != 0.0:
+            news_available = True
+
+    # ── Re-weight if layers missing ──────────────────────────────────────
+    available_weights = []
+    available_scores = []
+    if True:  # technical always available
+        available_weights.append(_TECH_W)
+        available_scores.append(ts_score)
+    if ml_available:
+        available_weights.append(_ML_W)
+        available_scores.append(ml_score)
+    if news_available:
+        available_weights.append(_NEWS_W)
+        available_scores.append(ns_score)
+
+    total_w = sum(available_weights)
+    fused_score = sum(w / total_w * s for w, s in zip(available_weights, available_scores))
+    fused_score = float(np.clip(fused_score, -1.0, 1.0))
+
+    # ── Final verdict (thresholds from app.py:3418-3452) ─────────────────
+    if fused_score >= 0.35:
+        final_label = "STRONG BUY"
+        final_desc = "All 3 layers aligned bullish. High conviction upside expected."
+    elif fused_score >= 0.12:
+        final_label = "BUY"
+        final_desc = "Majority signals favour upside. Moderate bullish bias."
+    elif fused_score <= -0.35:
+        final_label = "STRONG SELL"
+        final_desc = "All 3 layers aligned bearish. High conviction downside expected."
+    elif fused_score <= -0.12:
+        final_label = "SELL"
+        final_desc = "Majority signals favour downside. Moderate bearish bias."
+    else:
+        final_label = "NEUTRAL"
+        final_desc = "Mixed signals across layers. Avoid fresh positions, hold existing ones."
+
+    # ── Confidence tier (composite of available layers) ───────────────────
+    agreement_count = 0
+    agreement_total = 0
+    layers_bullish = [ts_label, ml_label, ns_label]
+    direction_labels = [l for l in layers_bullish if l != "NEUTRAL"]
+
+    if direction_labels:
+        dominant_dir = max(set(direction_labels), key=direction_labels.count)
+        agreement_count = sum(1 for l in direction_labels if l == dominant_dir)
+        agreement_total = len(direction_labels)
+
+    if agreement_total == 0:
+        conf_tier = "LOW"
+        conf_tone = "Weak conviction — mixed or missing layers."
+    elif agreement_count == agreement_total and agreement_total >= 2:
+        conf_tier = "HIGH"
+        conf_tone = "All available layers agree."
+    else:
+        conf_tier = "MEDIUM"
+        conf_tone = "Some layers disagree."
+
+    # ── What's missing ───────────────────────────────────────────────────
+    missing: list[str] = []
+    if not ml_available:
+        missing.append("ML prediction not available — training data insufficient.")
+    if not news_available:
+        missing.append("News sentiment unavailable — no headlines fetched.")
+
+    return {
+        "fused_score": round(fused_score, 4),
+        "final_label": final_label,
+        "final_desc": final_desc,
+        "confidence_tier": conf_tier,
+        "confidence_tone": conf_tone,
+        "missing": missing,
+        "layers": {
+            "technical": {
+                "score": round(ts_score, 4),
+                "label": ts_label,
+                "weight": _TECH_W,
+                    "signals": [{"rule": s.get("rule", ""), "kind": s.get("kind", "neut")} for s in ts_signals[:8]],
+                "reasons": ts_reasons,
+            },
+            "ml": {
+                "score": round(ml_score, 4),
+                "label": ml_label,
+                "weight": _ML_W,
+                "available": ml_available,
+                "up_prob": ml_up_prob,
+                "confidence": ml_confidence,
+                "horizon": ml_horizon,
+                "model_accs": ml_model_accs,
+                "conf_tier": ml_conf_tier,
+                "walk_fwd_acc": ml_walk_fwd,
+                "active_models": ml_active_models,
+            },
+            "news": {
+                "score": round(ns_score, 4),
+                "label": ns_label,
+                "weight": _NEWS_W,
+                "available": news_available,
+                "detail": ns_detail[:6],
+            },
+        },
+    }
+
+
+# ── Async fusion API ────────────────────────────────────────────────────────
+
+
+async def get_fusion(
+    symbol: str,
+    interval: Interval = "1d",
+    period: Period = "2y",
+) -> dict[str, Any]:
+    """Compute fused signal: technical + ML + news."""
+    # 1. Technical signal (fast, always works)
+    tech = await get_signal(symbol, interval, period)
+
+    # 2. ML prediction (try cached first, else run fresh)
+    ml_result: dict[str, Any] | None = None
+    try:
+        from app.modules.ml.service import predict
+        ml_result = await predict(symbol, use_lstm=False)
+    except Exception:  # noqa: BLE001, S110 — ML degradation is expected
+        pass
+
+    # 3. News sentiment
+    news_result: dict[str, Any] | None = None
+    try:
+        from app.modules.sentiment.service import get_headlines, get_sentiment_score
+        headlines = await get_headlines(symbol, max_items=8)
+        if headlines:
+            news_result = await anyio.to_thread.run_sync(
+                get_sentiment_score, headlines
+            )
+    except Exception:  # noqa: BLE001, S110 — news degradation is expected
+        pass
+
+    def compute() -> dict:
+        return compute_fusion(tech, ml_result, news_result)
 
     return await anyio.to_thread.run_sync(compute)
