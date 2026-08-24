@@ -5,7 +5,7 @@ import pandas as pd
 import pytest
 
 from app.modules.analytics.service import add_indicators, candles_to_df, find_sr
-from app.modules.signals.service import compute_signal, generate_markers
+from app.modules.signals.service import compute_fusion, compute_signal, generate_markers
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
 
@@ -145,3 +145,100 @@ def test_generate_markers_on_macd_crossover():
     expected_price = float(df["Close"].iloc[-1]) * 0.993
     assert buys[0]["price"] == pytest.approx(expected_price)
     assert buys[0]["position"] == "belowBar"
+
+
+# ── compute_fusion ──────────────────────────────────────────────────────────
+
+BULL_TECH = {
+    "verdict": "BUY",
+    "score": 8,
+    "confidence": 0.85,
+    "signals": [{"rule": "RSI Oversold", "kind": "buy"}],
+    "reasons": ["RSI oversold"],
+}
+BEAR_TECH = {
+    "verdict": "SELL",
+    "score": -8,
+    "confidence": 0.80,
+    "signals": [{"rule": "MACD Bearish", "kind": "sell"}],
+    "reasons": ["MACD down"],
+}
+NEUT_TECH = {
+    "verdict": "HOLD",
+    "score": 0,
+    "confidence": 0.60,
+    "signals": [],
+    "reasons": [],
+}
+ML_UP = {
+    "up_prob": 72.0,
+    "direction": "up",
+    "confidence": 68.0,
+    "horizon": {"1": {"direction": "up", "prob": 70}},
+    "model_accs": {"xgboost": 62.1},
+    "conf_tier": {"tier": "MEDIUM"},
+    "walk_fwd_acc": 55.0,
+    "active_models": "xgboost",
+}
+ML_DN = {
+    "up_prob": 28.0,
+    "direction": "down",
+    "confidence": 65.0,
+    "horizon": {"1": {"direction": "down", "prob": 72}},
+    "model_accs": {},
+    "conf_tier": {},
+    "walk_fwd_acc": 0.0,
+    "active_models": "",
+}
+NEWS_POS = {"score": 0.3, "label": "BULLISH", "detail": [{"headline": "Stock surges", "label": "positive"}]}
+NEWS_NEG = {"score": -0.25, "label": "BEARISH", "detail": []}
+
+
+def test_fusion_all_bullish():
+    out = compute_fusion(BULL_TECH, ML_UP, NEWS_POS)
+    assert out["fused_score"] > 0.35
+    assert out["final_label"] == "STRONG BUY"
+    assert out["confidence_tier"] == "HIGH"
+    assert out["missing"] == []
+
+
+def test_fusion_all_bearish():
+    out = compute_fusion(BEAR_TECH, ML_DN, NEWS_NEG)
+    assert out["fused_score"] < -0.35
+    assert out["final_label"] == "STRONG SELL"
+    assert out["confidence_tier"] == "HIGH"
+
+
+def test_fusion_mixed_signals_hold():
+    out = compute_fusion(BULL_TECH, ML_DN, NEWS_NEG)
+    assert -0.35 <= out["fused_score"] <= 0.35
+    assert out["final_label"] == "NEUTRAL"
+
+
+def test_fusion_graceful_degradation_no_ml():
+    out = compute_fusion(NEUT_TECH, None, None)
+    assert out["layers"]["ml"]["available"] is False
+    assert "ML prediction" in out["missing"][0]
+    assert out["layers"]["news"]["available"] is False
+    assert out["fused_score"] == pytest.approx(0.0)
+
+
+def test_fusion_graceful_degradation_news_only():
+    out = compute_fusion(BULL_TECH, None, NEWS_POS)
+    assert out["layers"]["ml"]["available"] is False
+    assert out["layers"]["news"]["available"] is True
+    assert out["fused_score"] > 0
+    # technical weight should be re-weighted to cover missing ML
+    assert out["layers"]["technical"]["weight"] == 0.45
+
+
+def test_fusion_fused_score_range():
+    out = compute_fusion(BULL_TECH, ML_UP, NEWS_POS)
+    assert -1.0 <= out["fused_score"] <= 1.0
+
+
+def test_fusion_layers_have_weights():
+    out = compute_fusion(BULL_TECH, ML_UP, NEWS_POS)
+    assert out["layers"]["technical"]["weight"] == 0.45
+    assert out["layers"]["ml"]["weight"] == 0.40
+    assert out["layers"]["news"]["weight"] == 0.15
