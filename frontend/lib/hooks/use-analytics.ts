@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { getIndicators, getSupportResistance } from "@/lib/api/analytics";
 import { getSmc, type SmcResponse } from "@/lib/api/smc";
-import { getSignal } from "@/lib/api/signals";
+import { getSignal, getFusion, type FusionResponse } from "@/lib/api/signals";
 import type { Interval, Period } from "@/lib/api/market";
 
 const STALE = 5 * 60 * 1000; // backend history TTL parity: 300s
@@ -40,6 +40,15 @@ export function useSmc(symbol: string, interval: Interval, period: Period) {
   return useQuery({
     queryKey: ["smc", symbol, interval, period],
     queryFn: (): Promise<SmcResponse> => getSmc(symbol, interval, period),
+    enabled: symbol.length > 0,
+    staleTime: STALE,
+  });
+}
+
+export function useFusion(symbol: string, interval: Interval, period: Period) {
+  return useQuery({
+    queryKey: ["fusion", symbol, interval, period],
+    queryFn: (): Promise<FusionResponse> => getFusion(symbol, interval, period),
     enabled: symbol.length > 0,
     staleTime: STALE,
   });
