@@ -1,6 +1,6 @@
 "use client";
 
-import { BarChart3, Brain, Newspaper, Shield, TrendingUp } from "lucide-react";
+import { BarChart3, Brain, Newspaper, Shield } from "lucide-react";
 
 import {
   Card,
@@ -14,12 +14,6 @@ import { InfoTip } from "@/components/info-tip";
 import { useFusion } from "@/lib/hooks/use-analytics";
 import type { Timeframe } from "../constants";
 import { cn } from "@/lib/utils";
-
-const LABEL_ICON: Record<string, React.ReactNode> = {
-  BULLISH: <TrendingUp className="size-3 text-up" />,
-  BEARISH: <TrendingUp className="size-3 rotate-180 text-down" />,
-  NEUTRAL: null,
-};
 
 function BlendBar({
   label,
