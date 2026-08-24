@@ -1,27 +1,33 @@
 # Signals — Overview
 
-**Plain words:** the app's opinion-giver. It reads the indicators and applies
-fixed, readable rules (the same ones a human chart trader would check) to
-answer: **Buy, Hold, or Sell — and why.** Never a black box.
+**Plain words:** the app's opinion-giver. Two modes: a rule-based verdict
+(signals) and a fused verdict that blends rules, ML, and news.
 
-## What it returns
+## Rule-based signal
 
-- **Verdict** — BUY / HOLD / SELL
-- **Score** −15…+15 (strong sell → strong buy)
-- **Confidence** — how strongly the rules agree
+- **Verdict** — BUY / WEAK BUY / HOLD / WEAK SELL / SELL
+- **Score** integer (strong sell → strong buy)
+- **Confidence** — 0.5–1.0, how strongly rules agree
 - **Rules breakdown** — every rule's own vote (shown as chips on the site)
-- **Stop-loss** — exit price if the trade goes wrong
+- **Markers** — buy/sell arrows on the chart
 
-## Endpoint
+Endpoint: `GET /api/v1/signals?symbol=&interval=&period=`
 
-`GET /api/v1/signals?symbol=&interval=&period=`
+## Fusion signal (3-layer blend)
+
+Blends three independent opinions into **one** final verdict:
+
+| Layer | Weight | What it is |
+|---|---|---|
+| Technical rules | 45% | 10 indicator checks → score −1…+1 |
+| ML ensemble | 40% | XGB+LGBM+CAT up-prob → score −1…+1 |
+| News NLP | 15% | FinBERT + keyword headline score −1…+1 |
+
+If ML or news is unavailable, remaining layers re-weight proportionally.
+Confidence tier: HIGH (all agree), MEDIUM (some disagree), LOW (missing layers).
+
+Endpoint: `GET /api/v1/signals/fusion?symbol=&interval=&period=`
 
 ## Where the code lives
 
 `backend/app/modules/signals/`. Tests: `backend/tests/test_analytics_signals.py`.
-
-## Good to know
-
-This is the **rule-based** signal. A later "fusion" endpoint will blend it
-with the ML prediction (40%) and news mood (15%) — weights 45/40/15.
-Education tool, not advice: rules describe the chart; they can't know news.

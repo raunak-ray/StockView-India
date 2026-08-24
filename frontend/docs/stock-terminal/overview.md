@@ -11,25 +11,18 @@
   Bollinger), RSI + MACD panes, support/resistance lines, buy/sell markers,
   and optional SMC zones. Time presets 1D / 1W / 1M. See
   [chart-layers.md](chart-layers.md).
-- **Verdict card** — BUY / HOLD / SELL badge, score gauge (−15…+15),
-  confidence, rule chips, plain "Why" list.
+- **Fusion verdict card** — STRONG BUY / BUY / NEUTRAL / SELL / STRONG SELL
+  badge, fused score gauge, 3-layer blend bars (technical 45%, ML 40%,
+  news 15%), confidence tier badge, "what's missing" hints, rule chips,
+  and the plain "Why" list. Tooltips on every concept.
 - **News & mood card** — headlines with tone badges plus two mood meters
   (news tone, chart indicators), each −1…+1.
 - **AI prediction card** — ensemble verdict with probability gauge, 1/3/5-day
   horizons, per-model accuracies, top features and the LSTM tomorrow-price
-  forecast. Tooltips explain every concept.
+  forecast.
 - **Star button** — add/remove from your watchlist.
-
-## Good to know
-
-Built on `lightweight-charts` (TradingView's open-source library) — fast
-pan/zoom. Chart, verdict and levels share one cached copy of the candles.
 
 ## Where the code lives
 
 `frontend/app/(app)/app/stocks/[symbol]/` — page + components beside it.
 Shared renderer: `components/charts/price-chart.tsx`.
-
-## Coming later
-
-Fusion verdict, analysis matrix.
