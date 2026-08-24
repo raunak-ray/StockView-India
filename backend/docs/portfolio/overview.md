@@ -1,11 +1,10 @@
 # Portfolio — Overview & Endpoints
 
-**Plain words:** the star button. Star a stock anywhere and it appears on
-your dashboard watchlist with live prices; unstar to remove. Each user's
-list is private and stored in the database — it survives restarts, unlike
-the old prototype which forgot everything on refresh.
+**Plain words:** two features in one module — the **watchlist** (star a stock
+and it shows on your dashboard) and **paper trading** (a ₹1,00,000 practice
+game where you buy/sell at live prices with fake money).
 
-## Endpoints
+## Watchlist endpoints
 
 | Method & path | What it does |
 |---|---|
@@ -15,11 +14,24 @@ the old prototype which forgot everything on refresh.
 
 All require login (401 otherwise). Adding a duplicate is safe — no double rows.
 
+## Paper trading endpoints
+
+| Method & path | What it does |
+|---|---|
+| `GET /api/v1/portfolio/paper` | Summary: cash, positions, orders, P&L |
+| `POST /api/v1/portfolio/paper/order` | Place order — `{"symbol", "side", "qty", "price"}` |
+| `GET /api/v1/portfolio/paper/positions` | Open positions with live P&L |
+| `GET /api/v1/portfolio/paper/orders` | Order history (newest first) |
+| `POST /api/v1/portfolio/paper/reset` | Reset to ₹1,00,000 |
+
+Paper trading starts with ₹1,00,000 cash. Orders fill instantly at the
+price you enter. State is per-user, in-memory — resets on server restart
+(parity with the original Streamlit prototype).
+
+Broker connectors (Kite, Upstox, Binance, Angel One) are flagged as
+future work — not integrated yet.
+
 ## Where the code lives
 
-`backend/app/modules/portfolio/`. Tests: `backend/tests/test_portfolio.py`.
-
-## What's coming to this module
-
-Paper trading (the ₹1,00,000 practice portfolio) and price alerts — same
-neighbourhood of the codebase (Phase 7–8 of the plan).
+`backend/app/modules/portfolio/`. Tests: `tests/test_portfolio.py` (watchlist),
+`tests/test_paper.py` (paper trading).
