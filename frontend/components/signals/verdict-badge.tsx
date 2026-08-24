@@ -3,11 +3,14 @@
 import { cn } from "@/lib/utils";
 
 const VERDICT_TONES: Record<string, string> = {
+  "STRONG BUY": "border-up/30 bg-up/10 text-up",
   BUY: "border-up/30 bg-up/10 text-up",
   "WEAK BUY": "border-up/30 bg-up/10 text-up",
   HOLD: "border-gold/30 bg-gold/10 text-gold",
+  NEUTRAL: "border-gold/30 bg-gold/10 text-gold",
   "WEAK SELL": "border-down/30 bg-down/10 text-down",
   SELL: "border-down/30 bg-down/10 text-down",
+  "STRONG SELL": "border-down/30 bg-down/10 text-down",
 };
 
 function glyph(verdict: string): string {
