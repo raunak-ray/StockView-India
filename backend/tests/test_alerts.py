@@ -1,9 +1,7 @@
 import pytest
 
 from app.modules.alerts.service import (
-    Alert,
     add_alert,
-    check_alerts,
     clear_all,
     clear_triggered,
     delete_alert,
