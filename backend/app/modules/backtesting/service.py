@@ -290,7 +290,7 @@ def _run_backtest_sync(
     eq_df_copy.set_index("date", inplace=True)
     monthly = eq_df_copy["equity"].resample("ME").last().pct_change().dropna() * 100
     monthly_returns = [
-        {"month": str(d.date())[:7], "return": round(float(v), 2)}
+        {"month": str(d.date())[:7], "return_pct": round(float(v), 2)}
         for d, v in monthly.items()
     ]
 
