@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.core.db import SessionLocal, init_db
 from app.core.redis import close_redis
+from app.modules.alerts.router import alerts_router
 from app.modules.analytics.router import router as analytics_router
 from app.modules.auth import service
 from app.modules.auth.router import router as auth_router
@@ -50,6 +51,7 @@ def create_app() -> FastAPI:
     app.include_router(nse_router, prefix=settings.api_v1_prefix)
     app.include_router(sentiment_router, prefix=settings.api_v1_prefix)
     app.include_router(ml_router, prefix=settings.api_v1_prefix)
+    app.include_router(alerts_router, prefix=settings.api_v1_prefix)
     app.include_router(backtesting_router, prefix=settings.api_v1_prefix)
 
     @app.get("/healthz")
