@@ -12,8 +12,7 @@ import numpy as np
 import pandas as pd
 
 from app.modules.market_data import service as market_data
-
-from app.modules.market_data.service import Interval, Period
+from app.modules.market_data.service import Period
 
 SLIPPAGE_PCT = 0.05
 
@@ -151,7 +150,11 @@ def _run_backtest_sync(
         capital += net
         pnl = net - (position * entry_px)
         pnl_pct = (fill_px - entry_px) / entry_px * 100.0
-        hold_days = (pd.Timestamp(date) - pd.Timestamp(entry_date)).days if hasattr(date, "date") else 0
+        hold_days = 0
+        try:
+            hold_days = (pd.Timestamp(date) - pd.Timestamp(entry_date)).days
+        except (ValueError, TypeError):
+            pass
         trades.append({
             "entry_date": str(entry_date)[:10],
             "exit_date": str(date)[:10],
@@ -282,7 +285,8 @@ def _run_backtest_sync(
 
     # Monthly returns for heatmap
     eq_df_copy = eq_df.copy()
-    eq_df_copy["date"] = pd.to_datetime(eq_df_copy["date"])
+    eq_df_copy["date"] = pd.to_datetime(eq_df_copy["date"], errors="coerce")
+    eq_df_copy = eq_df_copy.dropna(subset=["date"])
     eq_df_copy.set_index("date", inplace=True)
     monthly = eq_df_copy["equity"].resample("ME").last().pct_change().dropna() * 100
     monthly_returns = [
@@ -341,6 +345,8 @@ async def run_backtest(
         if not candles:
             return pd.DataFrame()
         df = pd.DataFrame(candles)
+        if "time" in df.columns and "Date" not in df.columns:
+            df.rename(columns={"time": "Date"}, inplace=True)
         for col in ["open", "high", "low", "close", "volume"]:
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors="coerce")
