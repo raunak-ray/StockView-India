@@ -43,8 +43,15 @@ def _extract_titles(xml: str) -> list[str]:
     """CDATA titles first, then plain <title> rows (row 0 is the feed name)."""
     titles = re.findall(r"<title><!\[CDATA\[(.*?)\]\]></title>", xml)
     if not titles:
-        titles = re.findall(r"<title>(.*?)</title>", xml)[1:]
-    return [t.strip() for t in titles if len(t.strip()) > 20]
+        titles = re.findall(r"<title>(.*?)</title>", xml)
+        # Skip the feed-level title (row 0) — same as Google News fallback
+        if titles:
+            titles = titles[1:]
+    return [
+        t.strip()
+        for t in titles
+        if len(t.strip()) > 20 and "Yahoo! Finance" not in t
+    ]
 
 
 def _fetch_headlines_sync(symbol: str, max_items: int) -> list[str]:
