@@ -49,6 +49,7 @@ const NAV = [
   { href: "/app/compare", label: "Compare", icon: LineChart },
   { href: "/app/backtest", label: "Backtest", icon: Blocks },
   { href: "/app/paper-trading", label: "Paper Trading", icon: Wallet },
+  { href: "/app/alerts", label: "Alerts", icon: Bell },
 ];
 
 function brandLink() {
@@ -180,8 +181,10 @@ function Topbar() {
           <MarketStatusChip />
         </span>
         <ThemeToggle />
-        <Button variant="ghost" size="icon" aria-label="Alerts">
-          <Bell className="size-4" />
+        <Button variant="ghost" size="icon" aria-label="Alerts" asChild>
+          <Link href="/app/alerts">
+            <Bell className="size-4" />
+          </Link>
         </Button>
         <Separator orientation="vertical" className="hidden h-6 md:block" />
         <DropdownMenu>
