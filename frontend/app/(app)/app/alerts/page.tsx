@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { SymbolSearch } from "@/components/symbol-search";
 import { useAlerts, useCreateAlert, useDeleteAlert, useClearAlerts } from "@/lib/hooks/use-alerts";
 import { cn } from "@/lib/utils";
 
@@ -43,7 +44,7 @@ export default function AlertsPage() {
         symbol: symbol.trim().toUpperCase(),
         price: Number(price),
         condition,
-        label: condition === "above" ? "📈 Crosses Above" : "📉 Crosses Below",
+        label: condition === "above" ? "Crosses Above" : "Crosses Below",
       },
       { onSuccess: () => setPrice("") },
     );
@@ -55,29 +56,26 @@ export default function AlertsPage() {
 
       {/* ── Create form ── */}
       <Card>
-        <CardHeader className="pb-3">
+        <CardHeader className="pb-4">
           <CardTitle className="flex items-center gap-2 text-sm">
             <Bell className="size-4 text-gold" />
             Set alert
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <div className="col-span-2 space-y-1.5">
-              <Label htmlFor="al-symbol" className="text-xs">Symbol</Label>
-              <Input
-                id="al-symbol"
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Symbol</Label>
+              <SymbolSearch
                 value={symbol}
-                onChange={(e) => setSymbol(e.target.value.toUpperCase())}
-                className="font-mono text-sm"
-                placeholder="RELIANCE.NS"
+                onChange={(t) => setSymbol(t)}
+                placeholder="Search stock…"
               />
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="al-price" className="text-xs">Price (₹)</Label>
+              <Label className="text-xs">Price (₹)</Label>
               <Input
-                id="al-price"
                 type="number"
                 min={0.01}
                 step={0.5}
@@ -95,8 +93,8 @@ export default function AlertsPage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="above">📈 Crosses Above</SelectItem>
-                  <SelectItem value="below">📉 Crosses Below</SelectItem>
+                  <SelectItem value="above">Crosses Above</SelectItem>
+                  <SelectItem value="below">Crosses Below</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -117,18 +115,19 @@ export default function AlertsPage() {
       {isLoading && (
         <div className="space-y-2">
           {[1, 2, 3].map((i) => (
-            <Skeleton key={i} className="h-16 w-full rounded-lg" />
+            <Skeleton key={i} className="h-16 w-full rounded-xl" />
           ))}
         </div>
       )}
 
-      {/* ── Active alerts ── */}
+      {/* ── Empty ── */}
       {!isLoading && active.length === 0 && fired.length === 0 && (
         <div className="py-12 text-center text-sm text-muted-foreground">
           No alerts set. Add one above.
         </div>
       )}
 
+      {/* ── Active alerts ── */}
       {!isLoading && active.length > 0 && (
         <div className="space-y-2">
           <div className="flex items-center justify-between">
@@ -150,9 +149,10 @@ export default function AlertsPage() {
           {active.map((a) => (
             <div
               key={a.id}
-              className="flex items-center justify-between rounded-lg border border-border bg-card px-4 py-3"
+              className="flex items-center justify-between rounded-xl border border-border bg-card px-4 py-3"
             >
               <div className="flex items-center gap-4">
+                <Bell className="size-4 text-gold" />
                 <span className="font-mono text-sm font-bold">{a.symbol}</span>
                 <span
                   className={cn(
@@ -207,7 +207,7 @@ export default function AlertsPage() {
           {fired.map((a) => (
             <div
               key={a.id}
-              className="flex items-center justify-between rounded-lg border border-down/20 bg-down/5 px-4 py-3"
+              className="flex items-center justify-between rounded-xl border border-down/20 bg-down/5 px-4 py-3"
             >
               <div className="flex items-center gap-4">
                 <BellOff className="size-4 text-down" />

@@ -20,6 +20,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { SymbolSearch } from "@/components/symbol-search";
 import { useWatchlistTickers } from "@/lib/hooks/use-watchlist";
 import {
   usePaperSummary,
@@ -92,15 +93,11 @@ function OrderTicket() {
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           {/* Symbol */}
           <div className="col-span-2 space-y-1.5">
-            <Label htmlFor="symbol" className="text-xs">
-              Symbol
-            </Label>
-            <Input
-              id="symbol"
-              placeholder="RELIANCE.NS"
+            <Label className="text-xs">Symbol</Label>
+            <SymbolSearch
               value={symbol}
-              onChange={(e) => setSymbol(e.target.value.toUpperCase())}
-              className="font-mono text-sm"
+              onChange={(t) => setSymbol(t)}
+              placeholder="Search stock…"
             />
             {/* Quick-pick from watchlist */}
             {watchlistTickers.size > 0 && (

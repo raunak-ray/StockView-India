@@ -3,7 +3,7 @@
 import { useState } from "react";
 import {
   BarChart3,
-  Play,
+  Settings2,
   Trophy,
   TrendingDown,
   TrendingUp,
@@ -22,11 +22,13 @@ import {
   Select,
   SelectContent,
   SelectItem,
+  SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { InfoTip } from "@/components/info-tip";
+import { SymbolSearch } from "@/components/symbol-search";
 import { useStrategies, useRunBacktest } from "@/lib/hooks/use-backtest";
 import type { BacktestResult } from "@/lib/api/backtest";
 import { cn } from "@/lib/utils";
@@ -45,16 +47,16 @@ function MetricCard({
   tone?: string;
 }) {
   return (
-    <div className="rounded-lg border border-border bg-card p-3 text-center">
-      <div className="mb-0.5 flex items-center justify-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+    <div className="rounded-xl border border-border bg-card p-4 text-center">
+      <div className="mb-1 flex items-center justify-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
         {icon}
         {label}
       </div>
-      <div className={cn("font-mono text-base font-bold tabular-nums", tone)}>
+      <div className={cn("font-mono text-xl font-bold tabular-nums", tone)}>
         {value}
       </div>
       {sub && (
-        <div className="font-mono text-[10px] text-muted-foreground">{sub}</div>
+        <div className="mt-0.5 font-mono text-xs text-muted-foreground">{sub}</div>
       )}
     </div>
   );
@@ -65,7 +67,7 @@ function EquityCurve({ data }: { data: { date: string; equity: number }[] }) {
   const min = Math.min(...data.map((d) => d.equity));
   const max = Math.max(...data.map((d) => d.equity));
   const range = max - min || 1;
-  const h = 120;
+  const h = 140;
   const w = 600;
   const points = data
     .map((d, i) => {
@@ -80,7 +82,6 @@ function EquityCurve({ data }: { data: { date: string; equity: number }[] }) {
 
   return (
     <svg viewBox={`0 0 ${w} ${h}`} className="w-full" preserveAspectRatio="none">
-      {/* Grid lines */}
       {[0, 0.25, 0.5, 0.75, 1].map((pct) => (
         <line
           key={pct}
@@ -93,18 +94,16 @@ function EquityCurve({ data }: { data: { date: string; equity: number }[] }) {
           strokeWidth={0.5}
         />
       ))}
-      {/* Area fill */}
       <polygon
         points={`0,${h} ${points} ${w},${h}`}
         fill={isUp ? "rgb(52, 211, 153)" : "rgb(239, 83, 80)"}
         opacity={0.1}
       />
-      {/* Line */}
       <polyline
         points={points}
         fill="none"
         stroke={isUp ? "rgb(52, 211, 153)" : "rgb(239, 83, 80)"}
-        strokeWidth={1.5}
+        strokeWidth={2}
       />
     </svg>
   );
@@ -113,7 +112,7 @@ function EquityCurve({ data }: { data: { date: string; equity: number }[] }) {
 function MonthlyHeatmap({ data }: { data: { month: string; return_pct: number }[] }) {
   if (!data.length) return null;
   return (
-    <div className="grid grid-cols-6 gap-1 sm:grid-cols-12">
+    <div className="grid grid-cols-4 gap-1.5 sm:grid-cols-6 md:grid-cols-12">
       {data.map((d) => {
         const pct = d.return_pct;
         const intensity = Math.min(Math.abs(pct) / 8, 1);
@@ -123,12 +122,12 @@ function MonthlyHeatmap({ data }: { data: { month: string; return_pct: number }[
         return (
           <div
             key={d.month}
-            className="flex flex-col items-center rounded p-1 text-[9px] font-mono"
+            className="flex flex-col items-center rounded-lg p-1.5 text-[10px] font-mono"
             style={{ background: bg }}
             title={`${d.month}: ${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%`}
           >
             <span className="text-muted-foreground">{d.month.slice(5)}</span>
-            <span className={pct >= 0 ? "text-up" : "text-down"}>
+            <span className={cn("font-semibold", pct >= 0 ? "text-up" : "text-down")}>
               {pct >= 0 ? "+" : ""}
               {pct.toFixed(1)}
             </span>
@@ -167,36 +166,35 @@ export default function BacktestPage() {
   };
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6">
+    <div className="mx-auto max-w-6xl space-y-8">
       <h1 className="text-2xl font-semibold">Backtesting</h1>
 
       {/* ── Config form ── */}
       <Card>
-        <CardHeader className="pb-3">
+        <CardHeader className="pb-4">
           <CardTitle className="flex items-center gap-2 text-sm">
-            <Play className="size-4 text-ai" />
+            <Settings2 className="size-4 text-ai" />
             Configure backtest
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <div className="col-span-2 space-y-1.5">
-              <Label htmlFor="bt-symbol" className="text-xs">Symbol</Label>
-              <Input
-                id="bt-symbol"
+        <CardContent className="space-y-5">
+          {/* Row 1: Symbol + Strategy + Period */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Symbol</Label>
+              <SymbolSearch
                 value={symbol}
-                onChange={(e) => setSymbol(e.target.value.toUpperCase())}
-                className="font-mono text-sm"
-                placeholder="RELIANCE.NS"
+                onChange={(t) => setSymbol(t)}
+                placeholder="Search stock…"
               />
             </div>
 
             <div className="space-y-1.5">
               <Label className="text-xs">Strategy</Label>
               <Select value={strategy} onValueChange={setStrategy}>
-                <Trigger className="w-full font-mono text-sm">
+                <SelectTrigger className="w-full font-mono text-sm">
                   <SelectValue />
-                </Trigger>
+                </SelectTrigger>
                 <SelectContent>
                   {strategies.data?.strategies.map((s) => (
                     <SelectItem key={s.name} value={s.name}>
@@ -213,27 +211,23 @@ export default function BacktestPage() {
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-xs">Period</Label>
-              <Select value={String(years)} onValueChange={(v) => setYears(Number(v))}>
-                <Trigger className="w-full font-mono text-sm">
-                  <SelectValue />
-                </Trigger>
-                <SelectContent>
-                  {[1, 2, 3, 5, 7, 10].map((y) => (
-                    <SelectItem key={y} value={String(y)}>
-                      {y}y
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label className="text-xs">Period (years)</Label>
+              <Input
+                type="number"
+                min={1}
+                max={10}
+                value={years}
+                onChange={(e) => setYears(Math.max(1, Math.min(10, Number(e.target.value))))}
+                className="font-mono text-sm"
+              />
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {/* Row 2: Capital + SL + TP + Commission */}
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
             <div className="space-y-1.5">
-              <Label htmlFor="bt-cap" className="text-xs">Capital (₹)</Label>
+              <Label className="text-xs">Capital (₹)</Label>
               <Input
-                id="bt-cap"
                 type="number"
                 min={10000}
                 step={10000}
@@ -243,12 +237,11 @@ export default function BacktestPage() {
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="bt-sl" className="text-xs">
+              <Label className="text-xs">
                 Stop-loss %
                 <InfoTip side="top">0 = no stop loss</InfoTip>
               </Label>
               <Input
-                id="bt-sl"
                 type="number"
                 min={0}
                 max={20}
@@ -258,12 +251,11 @@ export default function BacktestPage() {
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="bt-tp" className="text-xs">
+              <Label className="text-xs">
                 Take-profit %
                 <InfoTip side="top">0 = no take-profit (exit on signal only)</InfoTip>
               </Label>
               <Input
-                id="bt-tp"
                 type="number"
                 min={0}
                 max={50}
@@ -273,12 +265,11 @@ export default function BacktestPage() {
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="bt-comm" className="text-xs">
+              <Label className="text-xs">
                 Commission %
                 <InfoTip side="top">Per-trade commission (each leg)</InfoTip>
               </Label>
               <Input
-                id="bt-comm"
                 type="number"
                 min={0}
                 max={1}
@@ -295,14 +286,14 @@ export default function BacktestPage() {
             disabled={runBt.isPending || !symbol.trim()}
             className="w-full bg-ai text-ai-foreground hover:bg-ai/90 sm:w-auto"
           >
-            {runBt.isPending ? "Running..." : "Run Backtest"}
+            {runBt.isPending ? "Running…" : "Run Backtest"}
           </Button>
         </CardContent>
       </Card>
 
       {/* ── Error ── */}
       {runBt.isError && (
-        <div className="rounded-lg border border-down/20 bg-down/5 p-4 text-sm text-down">
+        <div className="rounded-xl border border-down/20 bg-down/5 p-4 text-sm text-down">
           {runBt.error instanceof Error ? runBt.error.message : "Backtest failed"}
         </div>
       )}
@@ -312,18 +303,18 @@ export default function BacktestPage() {
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
-              <Skeleton key={i} className="h-20 rounded-lg" />
+              <Skeleton key={i} className="h-24 rounded-xl" />
             ))}
           </div>
-          <Skeleton className="h-32 w-full rounded-lg" />
+          <Skeleton className="h-40 w-full rounded-xl" />
         </div>
       )}
 
       {/* ── Results ── */}
       {result && (
         <div className="space-y-6">
-          {/* Strategy + symbol header */}
-          <div className="flex items-center justify-between text-sm">
+          {/* Header */}
+          <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
             <span className="font-mono text-muted-foreground">
               {result.strategy} · {result.symbol} · {result.years}y
             </span>
@@ -385,7 +376,7 @@ export default function BacktestPage() {
             <MetricCard label="Avg Hold" value={`${result.avg_hold.toFixed(0)}d`} sub={`Expect ₹${result.expectancy.toFixed(0)}`} />
           </div>
 
-          {/* Tabs: monthly + trades */}
+          {/* Tabs */}
           <Tabs defaultValue="trades">
             <TabsList className="w-full">
               <TabsTrigger value="trades" className="flex-1">
@@ -397,21 +388,21 @@ export default function BacktestPage() {
             </TabsList>
 
             <TabsContent value="trades">
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 {result.trades.length === 0 ? (
-                  <p className="py-8 text-center text-sm text-muted-foreground">
+                  <p className="py-12 text-center text-sm text-muted-foreground">
                     No trades executed.
                   </p>
                 ) : (
                   result.trades.map((t, i) => (
                     <div
                       key={i}
-                      className="flex items-center justify-between rounded-lg border border-border px-3 py-2"
+                      className="flex items-center justify-between rounded-xl border border-border px-4 py-3"
                     >
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-3">
                         <span
                           className={cn(
-                            "rounded-full px-2 py-0.5 font-mono text-[10px] font-semibold",
+                            "rounded-full px-2.5 py-0.5 font-mono text-[10px] font-semibold",
                             t.win ? "bg-up/10 text-up" : "bg-down/10 text-down",
                           )}
                         >
@@ -448,18 +439,5 @@ export default function BacktestPage() {
         </div>
       )}
     </div>
-  );
-}
-
-function Trigger({ className, children }: { className?: string; children: React.ReactNode }) {
-  return (
-    <button
-      className={cn(
-        "flex h-9 w-full items-center justify-between rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
-        className,
-      )}
-    >
-      {children}
-    </button>
   );
 }
