@@ -7,11 +7,14 @@ page rerun). No background worker — identical behaviour to app.py.
 
 from __future__ import annotations
 
+import logging
 import uuid
-from dataclasses import dataclass, field
-from datetime import datetime
+from dataclasses import dataclass
+from datetime import UTC, datetime
 
 from app.modules.market_data import service as market_data
+
+log = logging.getLogger(__name__)
 
 
 @dataclass
@@ -51,7 +54,7 @@ def add_alert(
         price=price,
         condition=condition,
         label=label,
-        created=datetime.now().strftime("%H:%M:%S"),
+        created=datetime.now(tz=UTC).strftime("%H:%M:%S"),
     )
     alerts.append(alert)
     return alert
@@ -85,12 +88,13 @@ async def check_alerts(user_id: str) -> list[Alert]:
         try:
             quote = await market_data.get_quote(alert.symbol)
             chk_price = quote.get("lastPrice", alert.price) if quote else alert.price
-        except Exception:
+        except (KeyError, ValueError, TypeError):
             chk_price = alert.price
-        if alert.condition == "above" and chk_price >= alert.price:
-            alert.triggered = True
-            triggered_now.append(alert)
-        elif alert.condition == "below" and chk_price <= alert.price:
+        hit = (
+            (alert.condition == "above" and chk_price >= alert.price)
+            or (alert.condition == "below" and chk_price <= alert.price)
+        )
+        if hit:
             alert.triggered = True
             triggered_now.append(alert)
     return triggered_now
