@@ -8,9 +8,9 @@ class Settings(BaseSettings):
     debug: bool = False
     api_v1_prefix: str = "/api/v1"
 
-    # SQLite for zero-infra dev; point at Postgres for prod:
-    # postgresql+asyncpg://user:pass@localhost:5432/stockview
-    database_url: str = "sqlite+aiosqlite:///./stockview.db"
+    # PostgreSQL everywhere (local dev runs in Docker — see docker-compose.yml):
+    # postgresql+asyncpg://postgres:postgres@localhost:5432/stockview
+    database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/stockview"
     redis_url: str = "redis://localhost:6379/0"
 
     # Auth
