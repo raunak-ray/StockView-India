@@ -2,9 +2,31 @@
 # Only the services needed for development run here; the app itself
 # (api/worker) still runs on the host via uvicorn/arq.
 #
-#   docker compose up -d redis
+#   docker compose up -d postgres redis
+#
+# NOTE: the postgres service publishes host port 5432. If you already run
+# your own postgres container on 5432 (e.g. a container named `postgres`),
+# stop it first or point SV_DATABASE_URL at it instead.
 #
 services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: stockview-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: stockview
+    ports:
+      - "5432:5432"
+    volumes:
+      - stockview-pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d stockview"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
   redis:
     image: redis:7-alpine
     container_name: stockview-redis
@@ -20,4 +42,5 @@ services:
       retries: 5
 
 volumes:
+  stockview-pg-data:
   stockview-redis-data:
