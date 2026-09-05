@@ -255,12 +255,57 @@
   animation: drift 12s ease-in-out infinite;
 }
 
+/* Hero photo: barely-there Ken Burns drift */
+@keyframes hero-zoom {
+  from {
+    transform: scale(1);
+  }
+  to {
+    transform: scale(1.08);
+  }
+}
+.animate-hero-zoom {
+  animation: hero-zoom 26s ease-in-out infinite alternate;
+}
+
+/* Footer aurora wash slowly panning across */
+@keyframes aurora-pan {
+  0% {
+    background-position: 0% 40%;
+  }
+  50% {
+    background-position: 100% 60%;
+  }
+  100% {
+    background-position: 0% 40%;
+  }
+}
+.animate-aurora {
+  animation: aurora-pan 18s ease-in-out infinite;
+}
+
+/* Footer watermark: sheen sweeping through the giant wordmark */
+@keyframes footer-sheen {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -20% 0;
+  }
+}
+.animate-footer-sheen {
+  animation: footer-sheen 11s linear infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-dash-flow,
   .animate-soft-pulse,
   .animate-float-y,
   .animate-beam-x,
-  .animate-drift {
+  .animate-drift,
+  .animate-hero-zoom,
+  .animate-aurora,
+  .animate-footer-sheen {
     animation: none;
   }
 }
