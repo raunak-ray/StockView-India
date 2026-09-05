@@ -5,7 +5,6 @@ import { HowItWorksSection } from "./components/how-it-works";
 import { SiteFooter } from "./components/site-footer";
 import { SiteHeader } from "./components/site-header";
 import { TeamSection } from "./components/team-section";
-import { MarketTickerMarquee } from "./components/ticker-marquee";
 
 export default function LandingPage() {
   return (
@@ -14,7 +13,6 @@ export default function LandingPage() {
 
       <main className="flex-1">
         <HeroSection />
-        <MarketTickerMarquee />
         <BentoFeatures />
         <HowItWorksSection />
         <TeamSection />
