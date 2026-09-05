@@ -2,9 +2,11 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.core.config import settings
-from app.core.db import SessionLocal, init_db
+from app.core.db import SessionLocal, init_db, ping_db
 from app.core.redis import close_redis
 from app.modules.alerts.router import alerts_router
 from app.modules.analytics.router import router as analytics_router
@@ -60,8 +62,12 @@ def create_app() -> FastAPI:
     async def healthz() -> dict:
         return {"status": "ok"}
 
-    @app.get("/readyz")
-    async def readyz() -> dict:
+    @app.get("/readyz", response_model=None)
+    async def readyz() -> dict | JSONResponse:
+        try:
+            await ping_db()
+        except (SQLAlchemyError, OSError):
+            return JSONResponse(status_code=503, content={"status": "db_unreachable"})
         return {"status": "ok"}
 
     @app.get(settings.api_v1_prefix + "/ping")
