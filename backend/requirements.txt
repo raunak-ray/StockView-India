@@ -1,0 +1,25 @@
+# StockView backend — runtime dependencies.
+# Install with:  pip install -r requirements.txt
+# Or for the editable dev install:  pip install -e ".[dev]"
+
+fastapi
+uvicorn[standard]
+pydantic>=2
+pydantic-settings
+sqlalchemy[asyncio]>=2
+alembic
+asyncpg
+psycopg[binary]
+redis
+arq
+apscheduler
+httpx
+yfinance>=0.2.37
+pandas>=2.0
+numpy>=1.24
+ta>=0.11.0
+nsepython>=2.0
+pyotp>=2.9
+pyjwt
+argon2-cffi
+scikit-learn>=1.3

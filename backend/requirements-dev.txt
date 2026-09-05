@@ -1,0 +1,10 @@
+# StockView backend — optional heavy ML deps.
+# Install with:  pip install -r requirements-ml.txt
+# Skip these if you only need the base API + indicators.
+
+xgboost
+lightgbm
+catboost
+torch
+transformers
+shap
