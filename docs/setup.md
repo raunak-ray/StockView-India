@@ -1,325 +1,335 @@
 # Setup
 
-Get the app running on your machine. The happy path takes about 5
-minutes if you already have Docker, Python 3.12+, and Node.js 20+
-installed. The troubleshooting section below covers the 6 most common
-issues.
+This guide is for **Windows users on the team**. You're getting a
+pre-made `.env` file from the project lead — paste it in, run two
+commands, you're done. The `.env` points to a hosted PostgreSQL and
+hosted Redis, so **no Docker, no local database, nothing extra to
+install**.
 
-## Prerequisites
+Total time: about 5 minutes.
 
-| Tool | Minimum version | Why |
-|---|---|---|
-| **Python** | 3.12 | Backend runtime. Required for the async syntax and the typing. |
-| **Node.js** | 20 | Frontend runtime. Required for the App Router. |
-| **Docker** | 24 | Runs PostgreSQL and Redis as containers. |
-| **Docker Compose** | v2 | Brought with Docker Desktop or installed separately. |
-| **Git** | 2.30 | Clone the repo. |
-| **4 GB RAM free** | — | PostgreSQL + Redis + Node dev server + ML training on demand. |
+## What you need to install (one-time)
 
-On macOS with Homebrew: `brew install python@3.12 node docker docker-compose git`.
-On Ubuntu: `sudo apt install python3.12 python3.12-venv nodejs npm docker.io docker-compose-plugin git`.
-On Windows: use WSL2 for the backend; the frontend runs natively.
+1. **Python 3.12** — download from
+   [python.org/downloads](https://www.python.org/downloads/). In the
+   installer, tick **"Add Python to PATH"**. Click Install Now.
+2. **Node.js 20+** — download the **LTS** installer from
+   [nodejs.org](https://nodejs.org/). Use all the default options.
+3. **Git** — download from [git-scm.com](https://git-scm.com/). Use
+   all the default options.
 
-## First-time setup
+You do **not** need Docker, PostgreSQL, or Redis. The hosted
+services in the `.env` cover that.
 
-### 1. Clone and start the data services
+## The 5 steps
 
-```bash
+### 1. Open PowerShell and clone the repo
+
+Press the **Windows key**, type `powershell`, hit **Enter**. Then:
+
+```powershell
 git clone <repo-url> StockView
-cd StockView/backend
-docker compose up -d postgres redis
+cd StockView
 ```
 
-Expected output: `Container stockview-postgres  Started` and
-`Container stockview-redis  Started`. The first run pulls the
-PostgreSQL 16 and Redis 7 images (~400 MB total).
+### 2. Put the `.env` file in the backend folder
 
-Verify they're up:
+The project lead gave you a file called `.env`. **Move or copy it
+into `StockView\backend\`** so the full path is
+`StockView\backend\.env`.
 
-```bash
-docker compose ps
-# NAME                  STATUS              PORTS
-# stockview-postgres    Up (healthy)        0.0.0.0:5432->5432/tcp
-# stockview-redis       Up (healthy)        0.0.0.0:6379->6379/tcp
+You can do this in File Explorer (it'll warn you about the dot
+prefix — click "Yes"), or in PowerShell:
+
+```powershell
+# If your .env is on the Desktop, for example:
+Copy-Item "$env:USERPROFILE\Desktop\.env" "StockView\backend\.env"
+
+# Sanity check
+Test-Path "StockView\backend\.env"   # should print: True
 ```
 
-If `STATUS` is not "healthy" within 10s, see the
-[troubleshooting](#troubleshooting) section below.
+The file is small (4 lines). It looks like:
 
-### 2. Backend
+```env
+SV_DEBUG=false
+SV_DATABASE_URL=postgresql+asyncpg://...
+SV_REDIS_URL=redis://...
+SV_SECRET_KEY=...
+```
 
-```bash
-python3 -m venv .venv && source .venv/bin/activate   # Windows: .\.venv\Scripts\Activate.ps1
+Don't edit it. The values point to hosted services — they already
+work.
+
+### 3. Set up the backend (one copy-paste)
+
+In the same PowerShell window:
+
+```powershell
+cd StockView\backend
+py -3.12 -m venv .venv
+.\.venv\Scripts\Activate.ps1
 pip install -e ".[dev]"
-cp .env.example .env
-alembic upgrade head
-uvicorn app.main:app --reload --port 8000
 ```
 
-The `pip install -e ".[dev]"` pulls FastAPI, SQLAlchemy (async),
-asyncpg, redis, yfinance, ta, optional torch/transformers (for
-FinBERT + LSTM), pytest, ruff, mypy, and the dev-only deps.
+Wait until pip finishes (about 1–2 minutes). You'll see a wall of
+"Requirement already satisfied" / "Successfully installed" lines.
+At the end you should be back at a prompt that looks like:
 
-The `alembic upgrade head` creates the `users`, `refresh_tokens`,
-and `watchlist_items` tables in PostgreSQL. If you see
-"relation already exists" errors, see [below](#alembic-says-relation-already-exists).
+```
+(.venv) PS C:\...\StockView\backend>
+```
 
-The `uvicorn` line starts the dev server with hot reload on
-`http://localhost:8000`. You should see:
+**If PowerShell says "running scripts is disabled"** when you run
+`.\.venv\Scripts\Activate.ps1`, run this once (and only once) in a
+PowerShell **opened as Administrator**:
+
+```powershell
+Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
+```
+
+Then close the admin window, go back to your normal PowerShell, and
+re-run `.\.venv\Scripts\Activate.ps1`.
+
+### 4. Start the backend (one command)
+
+Still in the same PowerShell window, with `(.venv)` showing:
+
+```powershell
+stockview-backend dev
+```
+
+You should see:
 
 ```
 INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
-INFO:     Started reloader process [12345] using StatReload
-INFO:     Started server process [12346]
-INFO:     Waiting for application startup.
+INFO:     Started reloader process [...]
 INFO:     Application startup complete.
 ```
 
-The auto-generated API docs are at `http://localhost:8000/docs`
-(Swagger UI) and `http://localhost:8000/redoc` (ReDoc).
+If you see `Application startup complete.` — the backend is live.
+**Leave this window open.** Open a new PowerShell window for the
+frontend (next step).
 
-### 3. Frontend
+If you see an error, jump to [Troubleshooting](#troubleshooting) at
+the bottom of this page.
 
-In a second terminal:
+### 5. Start the frontend (new PowerShell window)
 
-```bash
-cd ../frontend
+Press **Win + R**, type `powershell`, hit **Enter**. In the new
+window:
+
+```powershell
+cd StockView\frontend
 npm install
 npm run dev
 ```
 
-Expected output: `Local: http://localhost:3000/`. Open the URL in a
-browser. You should see the landing page with a "Get started" button
-and a sign-in / register link.
+Wait until you see:
 
-### 4. First login
+```
+▲ Next.js 16.x
+- Local:        http://localhost:3000
+✓ Ready in 3s
+```
 
-The app ships with a seeded `demo` user. Open the sign-in page and
-log in as:
+**Open your browser** at <http://localhost:3000>. You should see
+the StockView landing page.
+
+### 6. Log in
+
+The app ships with a demo account:
 
 - **Username**: `demo`
 - **Password**: `demo123`
 
-You should land on the dashboard at `/app`. The "Indian Indices"
-cards should show Nifty, Sensex, and Bank Nifty within ~1 second (the
-quotes are cached for 60 seconds after the first request).
+You land on the dashboard. That's it — you're set up.
 
-### 5. Optional: seed extra data
+---
 
-The seed script in `backend/scripts/seed.py` creates a few extra demo
-users with realistic watchlists. Run it once:
+## Day-to-day use
 
-```bash
-cd backend
-python scripts/seed.py
+You only do steps 1, 2, 5 once. After that, every time you want to
+work on the project:
+
+1. **Open PowerShell window A** (the backend):
+
+   ```powershell
+   cd StockView\backend
+   .\.venv\Scripts\Activate.ps1
+   stockview-backend dev
+   ```
+
+2. **Open PowerShell window B** (the frontend):
+
+   ```powershell
+   cd StockView\frontend
+   npm run dev
+   ```
+
+3. Open <http://localhost:3000> in your browser.
+
+To **stop** everything: press **Ctrl+C** in each window.
+
+## What if I need to re-clone or wipe everything?
+
+```powershell
+# Remove the project folder entirely
+Remove-Item -Recurse -Force StockView
+
+# Start fresh
+git clone <repo-url> StockView
+# Then redo steps 2–5
 ```
 
-This is **not** required for the app to work. The default `demo`
-user is created automatically on first run.
+## Useful commands (all run from `StockView\backend` with `.venv` active)
 
-## Environment variables
+| Command | What it does |
+|---|---|
+| `stockview-backend dev` | Start the backend with auto-reload on :8000 |
+| `stockview-backend start` | Start the backend without auto-reload (production-style) |
+| `stockview-backend migrate` | Apply database migrations |
+| `stockview-backend seed` | Insert demo data (idempotent) |
+| `stockview-backend test` | Run the test suite |
+| `stockview-backend lint` | Run the linter |
 
-All env vars are read by `backend/app/core/config.py` via
-`pydantic-settings`. The defaults are in `.env.example`. Override
-per-environment by editing `.env` (gitignored) or by exporting in the
-shell.
+For the frontend, `package.json` already gives you:
 
-| Var | Default | What |
-|---|---|---|
-| `SV_DATABASE_URL` | `postgresql+asyncpg://postgres:postgres@localhost:5432/stockview` | PostgreSQL DSN |
-| `SV_REDIS_URL` | `redis://localhost:6379/0` | Redis DSN |
-| `SV_JWT_SECRET` | (required) | HS256 signing key. **Generate a random 32-byte string in production.** |
-| `SV_JWT_ALGORITHM` | `HS256` | The JWT signing algorithm. |
-| `SV_ACCESS_TOKEN_TTL` | `900` (15 min) | Access token lifetime in seconds |
-| `SV_REFRESH_TOKEN_TTL` | `604800` (7 days) | Refresh token lifetime in seconds |
-| `SV_ENV` | `dev` | One of `dev`, `prod`. Affects CORS, rate limits, doc exposure. |
-| `SV_LOG_LEVEL` | `INFO` | `DEBUG` for verbose logs. |
-| `SV_RATE_LIMIT_LOGIN` | `10/minute` | Per-IP login attempts |
-| `SV_RATE_LIMIT_DEFAULT` | `60/minute` | Per-IP default limit |
-| `SV_ENABLE_FINBERT` | `false` | Set to `true` to load the FinBERT model (slower first call, ~500MB RAM). |
-| `SV_ENABLE_LSTM` | `true` | Set to `false` to skip the optional LSTM path. |
-
-The frontend reads only **public** env vars (prefixed `NEXT_PUBLIC_`):
-
-| Var | Default | What |
-|---|---|---|
-| `NEXT_PUBLIC_API_BASE` | `http://localhost:8000/api/v1` | Backend API root |
-| `NEXT_PUBLIC_DEFAULT_THEME` | `dark` | `light` or `dark` |
-
-## Quality checks
-
-Run these before committing:
-
-```bash
-# Backend
-cd backend
-python -m pytest tests/ -v
-ruff check app tests
-mypy app
-```
-
-```bash
-# Frontend
-cd frontend
-npm run lint
-npm run build
-```
-
-CI runs the same checks. A red CI means at least one of these is
-failing.
-
-## Pre-commit
-
-The repo ships with a pre-commit config at `.pre-commit-config.yaml`.
-After cloning, run:
-
-```bash
-pre-commit install
-```
-
-This installs a Git hook that runs ruff + eslint on staged files.
-Commits are blocked if checks fail.
-
-## Production checklist
-
-For a deployment (not the demo):
-
-- [ ] `SV_JWT_SECRET` is a random 32+ byte secret, **not** the dev value.
-- [ ] `SV_ENV=prod` to disable docs and tighten CORS.
-- [ ] PostgreSQL is on a separate machine or managed service (RDS, Cloud SQL).
-- [ ] Redis is on a separate machine or managed service (ElastiCache, Memorystore).
-- [ ] HTTPS terminated at a load balancer; cookies are `Secure` + `SameSite=Lax`.
-- [ ] Logs shipped to a centralised store (CloudWatch, Loki, Datadog).
-- [ ] Backups: nightly `pg_dump` to S3, WAL archiving enabled.
-- [ ] Rate limits tuned: `SV_RATE_LIMIT_LOGIN=5/minute`,
-      `SV_RATE_LIMIT_DEFAULT=120/minute`.
-- [ ] Health check: `GET /healthz` returns 200 when the service is ready.
-- [ ] Monitoring: alert on 5xx rate > 1% over 5 minutes, p95 latency > 2s, Redis down, DB connection errors.
+| Command | What it does |
+|---|---|
+| `npm run dev` | Start the frontend on :3000 |
+| `npm run build` | Build for production |
+| `npm run lint` | Run the linter |
 
 ## Troubleshooting
 
-### Postgres won't start: "port 5432 already in use"
+### "running scripts is disabled on this system"
 
-You have a local PostgreSQL running. Either:
+You ran `.\.venv\Scripts\Activate.ps1` for the first time and
+PowerShell blocked it. See step 3 above — open PowerShell **as
+Administrator** once and run `Set-ExecutionPolicy -Scope CurrentUser
+-ExecutionPolicy RemoteSigned`. Then go back to your normal
+window.
 
-- **Stop your local one**: `sudo systemctl stop postgresql` (Linux),
-  or stop the brew service (`brew services stop postgresql@16` on
-  Mac), or stop the Mac Postgres app.
-- **Use a different port**: edit `docker-compose.yml` to map
-  `5433:5432`, then set `SV_DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5433/stockview`.
+### `py -3.12` says "the Python version is not found"
 
-### Redis won't start: "port 6379 already in use"
+You either:
 
-Same as above. Either stop your local Redis or map a different port.
+1. Didn't tick **"Add Python to PATH"** in the Python installer.
+   Re-run the installer, choose "Modify", tick the box, save.
+2. Installed Python 3.13 instead of 3.12. The project requires 3.12
+   specifically. Uninstall and install 3.12.
 
-### Alembic says "relation already exists"
+To check what you have:
 
-The DB has tables from a previous run but Alembic doesn't know. Two
-options:
-
-- **Drop the DB and re-create**:
-  ```bash
-  docker compose down -v
-  docker compose up -d postgres redis
-  alembic upgrade head
-  ```
-  The `-v` removes the volume, which deletes the old data.
-
-- **Stamp the head**:
-  ```bash
-  alembic stamp head
-  ```
-  This marks the existing tables as up-to-date without re-creating
-  them. Use this only if you're sure the schema is correct.
-
-### yfinance returns 429 (Too Many Requests)
-
-Yahoo Finance rate-limits aggressive callers. The backend's
-5-tier cache mitigates this in normal use, but a fresh start with
-many concurrent requests can hit the limit.
-
-- Wait 10 minutes and try again.
-- Reduce concurrency by closing other yfinance clients on your
-  machine.
-- For production, run a single backend instance (vertical scale) or
-  add a request-coalescing layer.
-
-### NSE endpoints fail with 502 / 403
-
-NSE India blocks some non-India IPs. From outside India, NSE
-endpoints will fail. The backend has multi-layer fallbacks
-(Trendlyne, static fixtures) so the request returns **something**,
-but for full functionality, test from an India-based network or
-use a VPN.
-
-### First ML predict takes 30–60 seconds
-
-The ML module trains the model on first call (per symbol, per process
-lifetime). Subsequent calls hit the in-memory cache and return in
-~50ms. This is expected — see `docs/modules/ml/overview.md`.
-
-If you want pre-warmed models on startup, set up a warmup script
-(not bundled today).
-
-### Alerts fire immediately after creation
-
-The `lastPrice` vs `price` bug in `backend/app/modules/alerts/service.py`
-makes every active alert fire on the next polling cycle (within 30s).
-The fix is a 4-line change documented in `docs/modules/alerts/implementation.md`.
-Until the fix is applied, every alert you create will move to
-"Triggered" almost instantly.
-
-### Frontend shows "Failed to fetch"
-
-The backend is not reachable. Check:
-
-1. Is `uvicorn` running? (Check the terminal where you started it.)
-2. Is `NEXT_PUBLIC_API_BASE` correct? (Default: `http://localhost:8000/api/v1`.)
-3. CORS: in dev, the backend allows `http://localhost:3000` by
-   default. If your frontend runs on a different port, update
-   `SV_CORS_ORIGINS` (a comma-separated list).
-
-### Curl test for the backend
-
-Quick check that the API is alive:
-
-```bash
-curl http://localhost:8000/healthz
-# {"status":"ok"}
-
-curl http://localhost:8000/api/v1/instruments/search?q=reliance
-# {"results":[{"ticker":"RELIANCE.NS","name":"Reliance Industries Limited",...}]}
+```powershell
+python --version
+# Should print: Python 3.12.x
 ```
 
-If these return correctly, the backend is healthy and the issue is on
-the frontend.
+### `stockview-backend: command not found`
 
-## Daily workflow
+The `pip install -e ".[dev]"` step either didn't run, didn't finish,
+or ran in a different terminal than the one you're using now.
 
-```bash
-# Start everything
-cd StockView
-docker compose up -d postgres redis
-cd backend && source .venv/bin/activate && uvicorn app.main:app --reload --port 8000 &
-cd ../frontend && npm run dev
+Fix:
+
+```powershell
+# Make sure the venv is active (you should see (.venv) in the prompt)
+cd StockView\backend
+.\.venv\Scripts\Activate.ps1
+pip install -e ".[dev]"
+# Look for "Successfully installed stockview-backend-0.1.0"
+stockview-backend dev
 ```
 
-```bash
-# Stop everything
-docker compose down
-# Kill the uvicorn and node processes (Ctrl+C in their terminals)
+### Backend startup error: "could not connect to server" or "password authentication failed"
+
+The `.env` file is wrong, missing, or in the wrong place. Check:
+
+```powershell
+Test-Path "StockView\backend\.env"   # should print: True
+Get-Content "StockView\backend\.env"  # should print 4 lines
 ```
 
-```bash
-# Wipe and re-start
-docker compose down -v
-docker compose up -d postgres redis
-cd backend && alembic upgrade head
+If the file is empty, you didn't get a real `.env` from the project
+lead — ask for it again. **Do not edit the values yourself.** The
+URLs point to hosted services with credentials baked in.
+
+### Backend startup error: "FATAL: role ... does not exist"
+
+Same as above — the `.env` isn't being read. Check the file exists at
+`StockView\backend\.env` and has 4 non-empty lines.
+
+### Frontend shows "Failed to fetch" on every page
+
+The backend isn't running. In window A, did you see
+`Application startup complete.`? If not, restart it with
+`stockview-backend dev`.
+
+If the backend is running but the frontend still says "Failed to
+fetch", check that the frontend is reading the right backend URL.
+In the frontend window, look at the first lines of output — it
+should mention `http://localhost:8000`.
+
+### Port 8000 is already in use
+
+Another program is using port 8000. Either close that program, or
+change the backend port. Easiest:
+
+```powershell
+# Edit .env and add this line:
+#   SV_PORT=8001
+# Then restart `stockview-backend dev`
 ```
+
+(You'll also need to update `frontend/.env.local` with
+`NEXT_PUBLIC_API_BASE=http://localhost:8001/api/v1`.)
+
+### `npm install` is slow or fails
+
+Try once more — npm sometimes has flaky network. If it keeps
+failing:
+
+```powershell
+# Clear npm's cache
+npm cache clean --force
+npm install
+```
+
+### A page shows "Failed to load NSE data"
+
+The NSE section uses nsepython. NSE sometimes blocks non-India
+networks. This is normal — the app falls back to a static fixture.
+Other pages (dashboard, stock terminal, sectors) still work.
+
+### First ML prediction takes 30–60 seconds
+
+Expected. The ML model trains on first call per stock. Subsequent
+calls are fast (~50ms). See the [ML module docs](modules/ml/overview.md).
+
+### Alerts fire within seconds of being created
+
+Known bug. The `lastPrice` vs `price` mismatch in
+`backend\app\modules\alerts\service.py` makes every alert fire
+immediately. The fix is a 4-line change documented in
+[alerts implementation](modules/alerts/implementation.md#the-fix-in-detail).
+Until the fix lands, every alert goes straight to "Triggered".
+
+### How do I know the backend is actually working?
+
+Open <http://localhost:8000/healthz> in your browser. You should
+see:
+
+```json
+{"status":"ok"}
+```
+
+If you see that, the backend is up and talking to the database.
 
 ## Related
 
-- [Database](database.md) — schema details, migrations, what is and isn't persisted.
+- [Getting started](getting-started.md) — the 5-minute first-time user walkthrough.
+- [Database](database.md) — the schema and tables.
 - [Architecture](architecture.md) — the bigger picture.
-- [Glossary](glossary.md) — terms used throughout the docs.
 - [Demo guide](demo-guide.md) — the 7-minute walkthrough for examiners.

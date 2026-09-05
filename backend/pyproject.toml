@@ -31,6 +31,16 @@ dependencies = [
 ml-heavy = ["xgboost", "lightgbm", "catboost", "torch", "transformers", "shap"]
 dev = ["pytest", "pytest-asyncio", "ruff", "mypy"]
 
+[project.scripts]
+# Mirror the npm-style "one line to run" feel.
+#   stockview-backend dev       (was: uvicorn app.main:app --reload)
+#   stockview-backend start     (was: uvicorn app.main:app)
+#   stockview-backend migrate   (was: alembic upgrade head)
+#   stockview-backend seed      (was: python scripts/seed.py)
+#   stockview-backend test      (was: pytest)
+#   stockview-backend lint      (was: ruff check)
+stockview-backend = "app.__main__:main"
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
