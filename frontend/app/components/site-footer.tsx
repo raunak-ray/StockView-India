@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { motion, useReducedMotion, type Variants } from "motion/react";
 
 import { FOOTER, FOOTER_SOCIALS } from "../constants";
 
@@ -33,30 +36,72 @@ const SOCIAL_ICONS = {
   linkedin: LinkedInIcon,
 } as const;
 
+/** Columns rise in a staggered wave as the footer scrolls into view. */
+const LIST: Variants = {
+  hidden: {},
+  show: { transition: { staggerChildren: 0.08, delayChildren: 0.05 } },
+};
+
+const ITEM: Variants = {
+  hidden: { opacity: 0, y: 24 },
+  show: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.55, ease: [0.22, 1, 0.36, 1] },
+  },
+};
+
 export function SiteFooter() {
   const year = new Date().getFullYear();
+  const reduce = useReducedMotion();
+  const scroll = reduce
+    ? {}
+    : {
+        initial: "hidden" as const,
+        whileInView: "show" as const,
+        viewport: { once: true, amount: 0.2 } as const,
+      };
 
   return (
     <footer className="relative mt-4 overflow-hidden border-t border-border bg-card/30">
+      {/* Animated aurora wash drifting behind everything */}
+      <div
+        aria-hidden
+        className="animate-aurora absolute inset-0 bg-[linear-gradient(115deg,color-mix(in_oklab,var(--color-primary)_9%,transparent),transparent_35%,color-mix(in_oklab,var(--color-info)_9%,transparent)_55%,transparent_75%,color-mix(in_oklab,var(--color-ai)_8%,transparent))] bg-[length:220%_220%]"
+      />
       {/* Light beam sliding along the top edge */}
       <div
         aria-hidden
-        className="animate-beam-x absolute inset-x-0 top-0 h-px bg-[linear-gradient(90deg,transparent,var(--color-primary),var(--color-info),var(--color-ai),transparent)] opacity-50"
+        className="animate-beam-x absolute inset-x-0 top-0 h-px bg-[linear-gradient(90deg,transparent,var(--color-primary),var(--color-info),var(--color-ai),transparent)] opacity-60"
       />
-      {/* Calm background: faint dots + a single glow */}
+      {/* Texture + drifting glow orbs */}
       <div
         aria-hidden
         className="dot-grid absolute inset-0 opacity-40 [mask-image:radial-gradient(ellipse_70%_80%_at_50%_0%,black_10%,transparent_70%)]"
       />
       <div
         aria-hidden
-        className="animate-drift absolute -top-20 left-1/4 h-56 w-96 rounded-full bg-primary/8 blur-3xl"
+        className="animate-drift absolute -top-24 left-[12%] h-56 w-96 rounded-full bg-primary/10 blur-3xl"
+      />
+      <div
+        aria-hidden
+        className="animate-drift absolute -top-16 right-[10%] h-48 w-80 rounded-full bg-info/10 blur-3xl"
+        style={{ animationDelay: "-4s" }}
+      />
+      <div
+        aria-hidden
+        className="animate-drift absolute bottom-0 left-[42%] h-44 w-[30rem] rounded-full bg-ai/[0.07] blur-3xl"
+        style={{ animationDelay: "-8s" }}
       />
 
-      <div className="relative mx-auto w-full max-w-6xl px-4 pb-10 pt-14">
+      <motion.div
+        {...scroll}
+        variants={LIST}
+        className="relative mx-auto w-full max-w-6xl px-4 pb-10 pt-14"
+      >
         <div className="grid gap-10 md:grid-cols-[1.4fr_repeat(4,1fr)]">
           {/* Brand */}
-          <div>
+          <motion.div variants={ITEM}>
             <Link href="/" className="flex items-center gap-2">
               <span className="flex size-7 items-center justify-center rounded-lg bg-primary text-sm font-bold text-primary-foreground">
                 SV
@@ -81,11 +126,11 @@ export function SiteFooter() {
                 );
               })}
             </div>
-          </div>
+          </motion.div>
 
           {/* Link groups */}
           {FOOTER.groups.map((group) => (
-            <nav key={group.title} aria-label={group.title}>
+            <motion.nav key={group.title} variants={ITEM} aria-label={group.title}>
               <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 {group.title}
               </h3>
@@ -101,26 +146,40 @@ export function SiteFooter() {
                   </li>
                 ))}
               </ul>
-            </nav>
+            </motion.nav>
           ))}
         </div>
 
         {/* Disclaimer + bottom bar */}
-        <div
+        <motion.div
+          variants={ITEM}
           id="disclaimer"
           className="mt-12 scroll-mt-24 rounded-xl border border-gold/25 bg-gold/5 px-4 py-3"
         >
           <p className="text-xs leading-relaxed text-muted-foreground">
             {FOOTER.disclaimer}
           </p>
-        </div>
+        </motion.div>
 
-        <div className="mt-8 flex flex-col items-center justify-between gap-3 border-t border-border pt-6 text-xs text-muted-foreground sm:flex-row">
+        <motion.div
+          variants={ITEM}
+          className="mt-8 flex flex-col items-center justify-between gap-3 border-t border-border pt-6 text-xs text-muted-foreground sm:flex-row"
+        >
           <p>
             © {year} {FOOTER.copyright}. For research and education only.
           </p>
           <p className="font-mono">NSE · BSE · Made in India</p>
-        </div>
+        </motion.div>
+      </motion.div>
+
+      {/* Giant watermark with a slow sheen sweep, fading into the page end */}
+      <div
+        aria-hidden
+        className="pointer-events-none relative select-none overflow-hidden [mask-image:linear-gradient(to_bottom,black_20%,transparent_92%)]"
+      >
+        <p className="animate-footer-sheen -mb-[0.24em] bg-[linear-gradient(100deg,color-mix(in_oklab,var(--color-primary)_4%,transparent)_20%,color-mix(in_oklab,var(--color-primary)_38%,transparent)_40%,color-mix(in_oklab,var(--color-info)_34%,transparent)_55%,color-mix(in_oklab,var(--color-primary)_4%,transparent)_75%)] bg-[length:220%_100%] bg-clip-text text-center text-[19vw] font-bold leading-none tracking-tight text-transparent md:text-[12rem]">
+          STOCKVIEW
+        </p>
       </div>
     </footer>
   );
