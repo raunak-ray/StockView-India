@@ -188,7 +188,7 @@ git clone <repo-url> StockView
 |---|---|
 | `stockview-backend dev` | Start the backend with auto-reload on :8000 |
 | `stockview-backend start` | Start the backend without auto-reload (production-style) |
-| `stockview-backend migrate` | Apply database migrations |
+| `stockview-backend migrate` | Create / update all DB tables (idempotent) |
 | `stockview-backend seed` | Insert demo data (idempotent) |
 | `stockview-backend test` | Run the test suite |
 | `stockview-backend lint` | Run the linter |
@@ -260,6 +260,20 @@ URLs point to hosted services with credentials baked in.
 
 Same as above — the `.env` isn't being read. Check the file exists at
 `StockView\backend\.env` and has 4 non-empty lines.
+
+### Backend startup error: "ModuleNotFoundError: No module named 'psycopg2'" or "TypeError: connect() got an unexpected keyword argument 'sslmode'"
+
+The `.env` you have uses `postgresql://` (the plain libpq scheme) but
+the project requires `postgresql+asyncpg://` (the async driver).
+
+**Do not edit the `.env` yourself.** The `.env` should already have
+`postgresql+asyncpg://...`. If you see `postgresql://` without the
+`+asyncpg` part, ask the project lead for the right file.
+
+The project's `db.py` automatically strips `sslmode=require` from the
+URL and translates it to asyncpg's `ssl=True`, so a URL like
+`postgresql+asyncpg://user:pass@host/db?sslmode=require` works
+without any extra config.
 
 ### Frontend shows "Failed to fetch" on every page
 
