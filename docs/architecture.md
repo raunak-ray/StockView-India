@@ -9,7 +9,7 @@ fetches prices from Yahoo Finance and NSE India.
 ```mermaid
 flowchart LR
     Browser[Browser] -->|HTTPS| Next[Next.js frontend]
-    Next -->|fetch /api/v1/* + cookies| FastAPI[FastAPI backend]
+    Next -->|fetch NEXT_PUBLIC_API_BASE/* + cookies| FastAPI[FastAPI backend]
     FastAPI --> PG[(PostgreSQL - accounts, lists, tokens)]
     FastAPI --> RD[(Redis - 60-300s cache)]
     FastAPI --> YF[Yahoo Finance - prices, history, info]
@@ -138,8 +138,9 @@ sequenceDiagram
         Browser->>Browser: hydrate
         loop for each hook (11 in parallel)
             Browser->>Hook: useQuote, useHistory, useFusion, …
-            Hook->>Client: fetch /api/v1/market-data/quote?…
-            Client->>FastAPI: HTTP request
+            Hook->>Client: fetch {NEXT_PUBLIC_API_BASE}/market-data/quote?…
+            Note over Client,Browser: NEXT_PUBLIC_API_BASE is in frontend/.env<br/>(default http://localhost:8000/api/v1)
+            Client->>FastAPI: HTTP request (cross-origin, cookies attached)
             FastAPI->>Service: market_data.service.get_quote
             Service->>Upstream: yfinance Ticker(…).info / fast_info
             Upstream-->>Service: data

@@ -20,6 +20,12 @@ node_modules/
 out/
 next-env.d.ts
 *.tsbuildinfo
+frontend/.env
+frontend/.env.local
+frontend/.env.development.local
+frontend/.env.production.local
+# Keep the example file tracked
+!frontend/.env.example
 
 # Misc
 .DS_Store

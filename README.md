@@ -1,221 +1,99 @@
 # StockView India
 
-Full-stack Indian stock trading terminal — FastAPI backend + Next.js frontend.
+Full-stack Indian stock analysis terminal — FastAPI backend + Next.js
+frontend. Search any NSE stock, get a chart, indicators, news, an
+ML prediction, and one BUY / HOLD / SELL verdict.
 
-![License](https://img.shields.io/badge/license-MIT-blue)
-![Python](https://img.shields.io/badge/python-3.12%2B-green)
-![Node](https://img.shields.io/badge/node-18%2B-green)
-![Tests](https://img.shields.io/badge/tests-83%2B-brightgreen)
+GitHub: https://github.com/raunak-ray/StockView-India
 
----
+## Run it
 
-## Demo
+After cloning, you need a `.env` file with the hosted database and
+Redis URLs — **get it from the project lead** (don't edit the values
+yourself; they point to managed services).
 
-> **Add your own screenshots and video below.** Place images in `docs/screenshots/` and reference them here.
-
-```
-docs/screenshots/
-├── dashboard.png          # Market overview + movers
-├── stock-terminal.png     # Chart + analytics + ML
-├── fusion-verdict.png     # Signal fusion card
-├── backtest.png           # Strategy results + equity curve
-├── paper-trading.png      # Virtual portfolio
-├── markets.png            # NSE options + FII/DII
-├── sectors.png            # Sector treemap
-└── demo.mp4               # Full walkthrough video
+```bash
+git clone https://github.com/raunak-ray/StockView-India
+cd StockView-India
 ```
 
-### Screenshots
-
-| Dashboard | Stock Terminal | Signal Fusion |
-|-----------|---------------|---------------|
-| ![Dashboard](docs/screenshots/dashboard.png) | ![Terminal](docs/screenshots/stock-terminal.png) | ![Fusion](docs/screenshots/fusion-verdict.png) |
-
-| Backtesting | Paper Trading | Markets |
-|------------|--------------|---------|
-| ![Backtest](docs/screenshots/backtest.png) | ![Paper](docs/screenshots/paper-trading.png) | ![Markets](docs/screenshots/markets.png) |
-
-### Demo video
-
-[![Watch the demo](docs/screenshots/demo.mp4)](docs/screenshots/demo.mp4)
-
----
-
-## What it does
-
-A complete Indian stock analysis terminal — originally built in Streamlit (8,700 lines), now rewritten as a production-grade modular monolith.
-
-### Features
-
-| Feature | Description |
-|---------|-------------|
-| **Live Charts** | TradingView-style candlestick charts with SMA/EMA/BB/RSI/MACD overlays |
-| **Technical Analytics** | 15+ indicators, support/resistance zones, Fibonacci levels |
-| **Signal Fusion** | Blends technical (45%) + ML (40%) + news sentiment (15%) into one verdict |
-| **ML Predictions** | XGBoost/LightGBM/CatBoost ensemble + price LSTM, background training |
-| **Smart Money Concepts** | Order blocks, fair value gaps, liquidity zones |
-| **News & Sentiment** | FinBERT + keyword scoring, mood meters |
-| **NSE India Data** | Option chain, PCR, max pain, FII/DII flows |
-| **Backtesting** | 6 strategies, look-ahead-free engine, equity curve + trade log |
-| **Paper Trading** | Virtual ₹1L portfolio with live P&L |
-| **Price Alerts** | Set above/below alerts, checked on page load |
-| **Sector Treemap** | Visual Nifty sector heatmap with drill-down |
-| **Compare** | Side-by-side two-symbol comparison |
-
----
-
-## Quick start
+Drop the `.env` you got into `backend/.env`.
 
 ### Backend
 
 ```bash
 cd backend
-python3 -m venv .venv && source .venv/bin/activate
+py -3.12 -m venv .venv
+.\.venv\Scripts\Activate.ps1        # Windows
+# source .venv/bin/activate         # macOS / Linux
 pip install -e ".[dev]"
-uvicorn app.main:app --reload
+stockview-backend migrate
+stockview-backend dev
 ```
 
-API runs at http://localhost:8000 — Swagger docs at http://localhost:8000/docs
+Backend runs at http://localhost:8000.
 
-### Frontend
+### Frontend (new terminal)
 
 ```bash
 cd frontend
+cp .env.example .env       # macOS / Linux
+# copy .env.example .env   # Windows PowerShell
 npm install
 npm run dev
 ```
 
-App runs at http://localhost:3000
+The `frontend/.env` file tells the browser where the backend lives
+(see `NEXT_PUBLIC_API_BASE` — defaults to `http://localhost:8000/api/v1`
+for dev).
 
-> **ML features** require optional extras: `pip install -e ".[ml-heavy]"` in the backend.
+App runs at http://localhost:3000. Log in with `demo` / `demo123`.
 
-See [`backend/README.md`](backend/README.md) and [`frontend/README.md`](frontend/README.md) for full setup on Linux, macOS, and Windows.
+## What it does
 
----
-
-## Architecture
-
-```
-┌──────────────────────────────────────────────────────────────┐
-│                       Frontend (Next.js)                      │
-│  React 19 · Tailwind · React Query · lightweight-charts       │
-├──────────────────────────────────────────────────────────────┤
-│                       Backend (FastAPI)                        │
-│  Modular monolith — 12 modules, async, SQLite/PostgreSQL      │
-├──────────┬──────────┬──────────┬──────────┬──────────────────┤
-│  Auth    │ Market   │ Signals  │   ML     │  Analytics       │
-│  Alerts  │   NSE    │   SMC    │ Backtest │  Sentiment       │
-├──────────┴──────────┴──────────┴──────────┴──────────────────┤
-│  PostgreSQL (prod) / SQLite (dev)  ·  Redis (optional cache) │
-└──────────────────────────────────────────────────────────────┘
-```
-
----
+- **Live charts** — candlesticks, SMA / EMA / BB / RSI / MACD overlays
+- **One-word verdict** — BUY / HOLD / SELL with the top reasons
+- **ML prediction** — XGBoost / LightGBM / CatBoost ensemble + LSTM
+- **News mood** — FinBERT scores recent headlines
+- **Backtesting** — 6 strategies, equity curve, monthly heatmap
+- **Paper trading** — virtual ₹1,00,000 portfolio
+- **Price alerts** — set above / below thresholds
+- **Sector treemap** — visual Nifty heatmap
+- **NSE data** — option chain (PCR + max-pain), FII/DII flows
 
 ## Project structure
 
 ```
-StockView/
-├── backend/                # FastAPI modular monolith
-│   ├── app/
-│   │   ├── core/           # Config, security, DB, Redis, deps
-│   │   └── modules/        # 12 feature modules (auth, ml, signals, ...)
-│   ├── tests/              # 83+ offline tests
-│   ├── docs/               # Per-module docs (≤200 words each)
-│   └── pyproject.toml      # Python deps + tool config
-├── frontend/               # Next.js 16 app
-│   ├── app/                # App Router pages
-│   ├── components/         # Shared UI components
-│   ├── lib/                # API clients, hooks, utilities
-│   └── package.json        # Node deps
-├── app.py                  # Legacy Streamlit app (read-only reference)
-├── plan/                   # Planning docs and phase checklists
-└── README.md               # This file
+StockView-India/
+├── backend/            # FastAPI modular monolith (13 modules)
+│   ├── app/            # Routers, services, models
+│   ├── docs/           # Per-module dev notes
+│   └── pyproject.toml
+├── frontend/           # Next.js 16 (12 pages)
+│   ├── app/            # App Router pages
+│   ├── components/     # Shared UI
+│   └── lib/            # API clients, hooks
+├── docs/               # Full project documentation
+│   ├── setup.md        # Detailed setup guide
+│   ├── architecture.md
+│   ├── modules/        # 13 backend modules
+│   └── pages/          # 12 frontend pages
+└── plan/               # Planning + phase checklists
 ```
-
----
-
-## Tech stack
-
-### Backend
-- **Framework:** FastAPI (async, Pydantic v2)
-- **Database:** SQLAlchemy 2 async + SQLite (dev) / PostgreSQL (prod)
-- **Cache:** Redis (optional)
-- **Auth:** JWT httpOnly cookies + Argon2
-- **Data:** Yahoo Finance (yfinance), NSE India (nsepython)
-- **ML:** XGBoost, LightGBM, CatBoost, PyTorch (LSTM), FinBERT, SHAP
-- **Testing:** pytest + pytest-asyncio, ruff, mypy
-
-### Frontend
-- **Framework:** Next.js 16 (App Router, Turbopack)
-- **UI:** React 19, Tailwind CSS, Radix UI (shadcn pattern)
-- **State:** React Query (TanStack Query v5)
-- **Charts:** lightweight-charts (TradingView)
-- **Tools:** TypeScript, ESLint
-
----
 
 ## Documentation
 
-Every module has a docs folder with a short (< 200 word) overview:
+Start with [`docs/setup.md`](docs/setup.md) for the full setup walkthrough
+(Windows / Mac / Linux, troubleshooting, env vars, daily workflow).
 
-| Module | Docs |
-|--------|------|
-| Auth | [`backend/docs/auth/`](backend/docs/auth/) |
-| Market Data | [`backend/docs/market-data/`](backend/docs/market-data/) |
-| Analytics | [`backend/docs/analytics/`](backend/docs/analytics/) |
-| Signals | [`backend/docs/signals/`](backend/docs/signals/) |
-| SMC | [`backend/docs/smc/`](backend/docs/smc/) |
-| Sentiment | [`backend/docs/sentiment/`](backend/docs/sentiment/) |
-| ML | [`backend/docs/ml/`](backend/docs/ml/) |
-| Backtesting | [`backend/docs/backtesting/`](backend/docs/backtesting/) |
-| Alerts | [`backend/docs/alerts/`](backend/docs/alerts/) |
-| Portfolio | [`backend/docs/portfolio/`](backend/docs/portfolio/) |
-| NSE | [`backend/docs/nse/`](backend/docs/nse/) |
-| Instruments | [`backend/docs/instruments/`](backend/docs/instruments/) |
+The full handbook is at [`docs/`](docs/README.md) — architecture
+diagram, 13 backend module docs, 12 frontend page docs, database
+schema, glossary, viva questions.
 
----
+## Tech stack
 
-## Running tests
-
-```bash
-# Backend
-cd backend
-pip install -e ".[dev]"
-python -m pytest tests/ -v
-
-# Frontend
-cd frontend
-npm run lint
-npm run build
-```
-
----
-
-## Docker (dev)
-
-```bash
-cd backend
-docker-compose up -d
-# Redis at localhost:6379, API at localhost:8000
-```
-
----
-
-## Contributing
-
-1. Branch from `feature/signals`
-2. Follow conventional commits: `feat:`, `fix:`, `test:`, `docs:` (≤30 words)
-3. Backend: `pytest && ruff check app tests && mypy app`
-4. Frontend: `npm run lint && npm run build`
-5. Update `plan/todo.md` when completing a phase
-
----
-
-## License
-
-MIT — see [LICENSE](LICENSE) for details.
-
----
-
-> **Built as a final-year project** — migrating a monolithic Streamlit app into a production-grade modular architecture with proper separation of concerns, type safety, and 83+ offline tests.
+- **Backend** — FastAPI, SQLAlchemy 2 (async), asyncpg, PostgreSQL
+  (Neon), Redis (Upstash), yfinance, nsepython, XGBoost / LightGBM /
+  CatBoost, PyTorch LSTM, FinBERT, Argon2 + JWT.
+- **Frontend** — Next.js 16, React 19, Tailwind, Radix UI, React
+  Query, lightweight-charts, cmdk (command palette), Zod, Sonner.

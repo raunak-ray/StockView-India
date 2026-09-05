@@ -114,16 +114,27 @@ frontend (next step).
 If you see an error, jump to [Troubleshooting](#troubleshooting) at
 the bottom of this page.
 
-### 5. Start the frontend (new PowerShell window)
+### 5. Set up the frontend (new PowerShell window)
 
 Press **Win + R**, type `powershell`, hit **Enter**. In the new
 window:
 
 ```powershell
 cd StockView\frontend
+copy .env.example .env
 npm install
 npm run dev
 ```
+
+> **Why copy `.env.example` to `.env`?** The frontend reads
+> `NEXT_PUBLIC_API_BASE` to know where the backend lives. The
+> default in `.env.example` is `http://localhost:8000/api/v1`, which
+> is correct for dev. The `.env` file is gitignored — your real
+> file stays local.
+>
+> If you want the frontend to point at a deployed backend (staging
+> / production), edit `frontend/.env` and change
+> `NEXT_PUBLIC_API_BASE` to that URL.
 
 Wait until you see:
 

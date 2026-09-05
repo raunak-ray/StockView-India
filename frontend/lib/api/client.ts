@@ -10,7 +10,13 @@ export class ApiError extends Error {
   }
 }
 
-const BASE = "/api/v1";
+// API base URL — read from the env at build time. See `.env.example`.
+// In dev this defaults to http://localhost:8000/api/v1 so the browser
+// calls the FastAPI server directly. In production set it to the
+// deployed backend URL.
+const BASE =
+  process.env.NEXT_PUBLIC_API_BASE?.replace(/\/$/, "") ??
+  "http://localhost:8000/api/v1";
 
 /** Paths where a 401 is a meaningful answer (wrong password, dead refresh
  *  token) — attempting a refresh cycle for them is pointless or harmful. */
