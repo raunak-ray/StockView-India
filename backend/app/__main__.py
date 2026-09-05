@@ -5,20 +5,22 @@ After `pip install -e ".[dev]"` you can run:
 
     stockview-backend dev      # uvicorn with --reload on :8000
     stockview-backend start    # uvicorn without reload on :8000
-    stockview-backend migrate  # alembic upgrade head
-    stockview-backend stamp    # alembic stamp head (mark DB as up-to-date)
-    stockview-backend seed     # python scripts/seed.py
+    stockview-backend migrate  # create all tables (idempotent)
+    stockview-backend seed     # insert demo data (idempotent)
     stockview-backend test     # pytest
     stockview-backend lint     # ruff check
 """
 
 from __future__ import annotations
 
+import asyncio
 import subprocess
 import sys
 from pathlib import Path
 
 import uvicorn
+
+from app.core.db import init_db
 
 BACKEND_ROOT = Path(__file__).resolve().parent.parent
 
@@ -40,18 +42,17 @@ def start() -> None:
 
 
 def migrate() -> None:
-    """Apply Alembic migrations to head."""
-    _run([sys.executable, "-m", "alembic", "upgrade", "head"])
+    """Create all tables declared in the SQLAlchemy models.
 
+    Idempotent — uses `Base.metadata.create_all`, so existing tables
+    are left alone. This is the project's schema bootstrap.
 
-def stamp() -> None:
-    """Stamp the DB with the current head without running migrations.
-
-    Use this when the DB has the expected tables but Alembic doesn't
-    know about them (e.g. you started on SQLite and switched to
-    PostgreSQL).
+    (The project doesn't use Alembic yet — schema changes are made by
+    editing the models and re-running this command. For real schema
+    migrations, set up Alembic.)
     """
-    _run([sys.executable, "-m", "alembic", "stamp", "head"])
+    asyncio.run(init_db())
+    print("✓ Tables are up to date.")
 
 
 def seed() -> None:
@@ -79,7 +80,6 @@ def main() -> None:
         "dev": dev,
         "start": start,
         "migrate": migrate,
-        "stamp": stamp,
         "seed": seed,
         "test": test,
         "lint": lint,
