@@ -1,21 +1,38 @@
+import Image from "next/image";
+
 import { TextReveal } from "@/components/motion/text-reveal";
 
 import { HERO, HERO_STATS } from "../constants";
 import { HeroCta } from "./hero-cta";
 import { HeroPreview } from "./hero-preview";
-import { HeroShader } from "./hero-shader";
 
 export function HeroSection() {
   return (
     <section className="relative overflow-hidden pb-24 pt-28">
-      {/* Layer 0: calm CSS gradient fallback (also shows if WebGL is absent) */}
+      {/* Layer 0: photo — dark candlestick terminal, slow Ken Burns drift */}
+      <Image
+        src="/images/hero-terminal.jpg"
+        alt=""
+        fill
+        priority
+        sizes="100vw"
+        className="animate-hero-zoom object-cover"
+      />
+      {/* Layer 1: readability wash (theme-aware so text stays legible) */}
       <div
         aria-hidden
-        className="absolute inset-0 bg-[radial-gradient(ellipse_60%_45%_at_50%_38%,color-mix(in_oklab,var(--color-primary)_16%,transparent),transparent_70%)]"
+        className="absolute inset-0 bg-background/72 dark:bg-[#060b16]/80"
       />
-      {/* Layer 1: WebGL aurora */}
-      <HeroShader className="absolute inset-0 opacity-55 dark:opacity-75" />
-      {/* Layer 2: texture + glows */}
+      {/* Layer 2: top blend under the header + bottom fade into the page */}
+      <div
+        aria-hidden
+        className="absolute inset-0 bg-gradient-to-b from-background/85 via-transparent to-background dark:from-[#060b16]/90 dark:via-transparent dark:to-background"
+      />
+      {/* Layer 3: emerald center glow + texture */}
+      <div
+        aria-hidden
+        className="absolute inset-0 bg-[radial-gradient(ellipse_60%_45%_at_50%_38%,color-mix(in_oklab,var(--color-primary)_18%,transparent),transparent_70%)]"
+      />
       <div
         aria-hidden
         className="dot-grid absolute inset-0 [mask-image:radial-gradient(ellipse_55%_45%_at_50%_35%,black_25%,transparent_75%)]"
@@ -28,11 +45,6 @@ export function HeroSection() {
         aria-hidden
         className="animate-drift absolute right-[8%] top-40 h-48 w-72 rounded-full bg-ai/10 blur-3xl"
         style={{ animationDelay: "-6s" }}
-      />
-      {/* Layer 3: fade the bottom into the page background */}
-      <div
-        aria-hidden
-        className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-b from-transparent to-background"
       />
 
       <div className="relative mx-auto flex w-full max-w-6xl flex-col items-center px-4 text-center">
