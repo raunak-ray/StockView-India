@@ -73,7 +73,7 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 - ReDoc: http://localhost:8000/redoc
 - Health check: http://localhost:8000/healthz
 
-The API auto-creates `stockview.db` (SQLite) on first run.
+The API auto-creates all tables in Postgres (`stockview` database) on first run.
 
 ## 5. Run tests
 
@@ -81,7 +81,7 @@ The API auto-creates `stockview.db` (SQLite) on first run.
 python -m pytest tests/ -v
 ```
 
-All tests are offline-safe (no external API calls). Expected: **83+ tests green**.
+All tests are offline-safe (no external API calls). Expected: **94 tests green**.
 
 ## 6. Lint & type check
 
@@ -112,11 +112,11 @@ backend/
 │       ├── alerts/              # Price alerts (CRUD + check-on-request)
 │       ├── portfolio/           # Watchlist + paper trading
 │       └── nse/                 # NSE India options/FII-DII
-├── tests/                       # 83+ offline tests
+├── tests/                       # 94 offline tests
 ├── docs/                        # Per-module docs (< 200 words each)
 ├── scripts/                     # Seed scripts, utilities
 ├── pyproject.toml               # Dependencies + tool config
-└── docker-compose.yml           # API + Redis (dev)
+└── docker-compose.yml           # Postgres + Redis (dev)
 ```
 
 ---
@@ -126,7 +126,7 @@ backend/
 | Service | Used for | Setup |
 |---------|----------|-------|
 | **Redis** | Caching market data, rate limiting | `redis-server` or Docker: `docker run -d -p 6379:6379 redis:7` |
-| **PostgreSQL** | Production database (replaces SQLite) | Set `DATABASE_URL` in environment |
+| **PostgreSQL** | Primary database (users, tokens, watchlist) | `docker compose up -d postgres`, URL in `SV_DATABASE_URL` |
 
 ## Environment variables
 
@@ -134,10 +134,12 @@ Set via `.env` file in `backend/` or export directly:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `DATABASE_URL` | `sqlite+aiosqlite:///./stockview.db` | Database connection string |
-| `REDIS_URL` | `redis://localhost:6379` | Redis cache URL |
-| `JWT_SECRET` | (auto-generated) | Secret for signing JWT tokens |
-| `CORS_ORIGINS` | `["http://localhost:3000"]` | Allowed frontend origins |
+| `SV_DATABASE_URL` | `postgresql+asyncpg://postgres:postgres@localhost:5432/stockview` | Postgres connection string |
+| `SV_REDIS_URL` | `redis://localhost:6379/0` | Redis cache URL |
+| `SV_SECRET_KEY` | `change-me` (dev only — set a real secret) | Secret for signing JWT tokens |
+| `SV_CORS_ORIGINS` | `["http://localhost:3000"]` | Allowed frontend origins |
+| `SV_ACCESS_TOKEN_MINUTES` | `15` | Access token lifetime |
+| `SV_REFRESH_TOKEN_DAYS` | `7` | Refresh token lifetime |
 
 ---
 
