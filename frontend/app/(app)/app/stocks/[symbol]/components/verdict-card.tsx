@@ -1,6 +1,13 @@
 "use client";
 
-import { BarChart3, Brain, Newspaper, Shield } from "lucide-react";
+import { useEffect, useState } from "react";
+import {
+  BarChart3,
+  Brain,
+  CheckCircle2,
+  Newspaper,
+  Shield,
+} from "lucide-react";
 
 import {
   Card,
@@ -12,6 +19,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { VerdictBadge } from "@/components/signals/verdict-badge";
 import { InfoTip } from "@/components/info-tip";
 import { useFusion } from "@/lib/hooks/use-analytics";
+import { autoSavePrediction } from "@/lib/api/blockchain";
 import type { Timeframe } from "../constants";
 import { cn } from "@/lib/utils";
 
@@ -98,6 +106,13 @@ function ConfidenceBadge({
   );
 }
 
+type BlockchainState =
+  | "idle"
+  | "saving"
+  | "saved"
+  | "duplicate"
+  | "error";
+
 /** Fused verdict card — technical + ML + news blend. */
 export function VerdictCard({
   symbol,
@@ -107,6 +122,47 @@ export function VerdictCard({
   timeframe: Timeframe;
 }) {
   const fusion = useFusion(symbol, timeframe.interval, timeframe.period);
+
+  const [blockchainState, setBlockchainState] =
+    useState<BlockchainState>("idle");
+  const [blockchainBlock, setBlockchainBlock] = useState<number | null>(
+    null,
+  );
+
+  useEffect(() => {
+    if (!fusion.data) {
+      return;
+    }
+
+    let cancelled = false;
+
+    async function savePredictionToBlockchain() {
+      try {
+        setBlockchainState("saving");
+
+        const result = await autoSavePrediction(symbol);
+
+        if (cancelled) {
+          return;
+        }
+
+        setBlockchainState(result.saved ? "saved" : "duplicate");
+        setBlockchainBlock(result.block_number);
+      } catch (error) {
+        if (!cancelled) {
+          console.error("Blockchain auto-save failed:", error);
+          setBlockchainState("error");
+          setBlockchainBlock(null);
+        }
+      }
+    }
+
+    savePredictionToBlockchain();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [fusion.data, symbol]);
 
   return (
     <Card>
@@ -149,6 +205,49 @@ export function VerdictCard({
               <p className="text-xs leading-relaxed text-muted-foreground">
                 {fusion.data.final_desc}
               </p>
+            </div>
+
+            {/* ── Blockchain verification ── */}
+            <div className="rounded-lg border border-border bg-muted/40 px-3 py-2.5">
+              {blockchainState === "idle" && (
+                <p className="text-xs text-muted-foreground">
+                  Blockchain verification pending.
+                </p>
+              )}
+
+              {blockchainState === "saving" && (
+                <div className="flex items-center gap-2">
+                  <div className="size-2 animate-pulse rounded-full bg-gold" />
+                  <p className="text-xs text-muted-foreground">
+                    Securing prediction on blockchain...
+                  </p>
+                </div>
+              )}
+
+              {(blockchainState === "saved" ||
+                blockchainState === "duplicate") && (
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="size-4 text-up" />
+                  <div>
+                    <p className="text-xs font-medium text-up">
+                      {blockchainState === "saved"
+                        ? "Prediction secured on blockchain"
+                        : "Prediction already verified on blockchain"}
+                    </p>
+                    {blockchainBlock !== null && (
+                      <p className="mt-0.5 font-mono text-[10px] text-muted-foreground">
+                        Block #{blockchainBlock}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {blockchainState === "error" && (
+                <p className="text-xs text-muted-foreground">
+                  Blockchain verification is temporarily unavailable.
+                </p>
+              )}
             </div>
 
             {/* ── 3-layer blend ── */}
