@@ -28,5 +28,9 @@ class Settings(BaseSettings):
     # Seeded users (parity with legacy app.py USERS map)
     seed_users: dict[str, str] = {"demo": "demo123", "admin": "admin123"}
 
+    # Blockchain
+    blockchain_rpc_url: str = "http://127.0.0.1:7545"
+    blockchain_contract_address: str = ""
+
 
 settings = Settings()

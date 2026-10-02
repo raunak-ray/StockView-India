@@ -25,6 +25,7 @@ dependencies = [
     "pyjwt",
     "argon2-cffi",
     "scikit-learn>=1.3",
+    "web3>=7.0",
 ]
 
 [project.optional-dependencies]

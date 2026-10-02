@@ -27,6 +27,9 @@ frontend/.env.production.local
 # Keep the example file tracked
 !frontend/.env.example
 
+# Blockchain / truffle
+blockchain/build/
+
 # Misc
 .DS_Store
 *.log

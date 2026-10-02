@@ -2,7 +2,7 @@
 # Only the services needed for development run here; the app itself
 # (api/worker) still runs on the host via uvicorn/arq.
 #
-#   docker compose up -d postgres redis
+#   docker compose up -d postgres redis ganache
 #
 # NOTE: the postgres service publishes host port 5432. If you already run
 # your own postgres container on 5432 (e.g. a container named `postgres`),
@@ -40,6 +40,17 @@ services:
       interval: 10s
       timeout: 3s
       retries: 5
+
+  # Local Ethereum-compatible chain for StockPrediction contract.
+  # Truffle + backend expect RPC at http://127.0.0.1:7545.
+  # Image listens on 8545 internally, mapped to host 7545.
+  ganache:
+    image: trufflesuite/ganache:latest
+    container_name: stockview-ganache
+    restart: unless-stopped
+    ports:
+      - "7545:8545"
+    command: --server.host 0.0.0.0 --chain.networkId 1337 --wallet.deterministic
 
 volumes:
   stockview-pg-data:
