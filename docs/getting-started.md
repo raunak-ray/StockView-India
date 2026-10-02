@@ -138,7 +138,7 @@ down). Click a sector to drill in.
 
 - **[Architecture](architecture.md)** — how the parts fit
   together. The diagram is helpful.
-- **[Modules](modules/)** — 13 backend modules, each with an
+- **[Modules](modules/)** — 14 backend modules, each with an
   overview, how-it-works, and implementation file. Start with
   [Market data](modules/market-data/overview.md) and
   [Signals](modules/signals/overview.md).

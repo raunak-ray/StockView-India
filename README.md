@@ -60,12 +60,14 @@ App runs at http://localhost:3000. Log in with `demo` / `demo123`.
 - **Price alerts** — set above / below thresholds
 - **Sector treemap** — visual Nifty heatmap
 - **NSE data** — option chain (PCR + max-pain), FII/DII flows
+- **Blockchain ledger** — each prediction written to a local Ethereum
+  chain (Ganache) by a Solidity contract, so it can't be quietly edited
 
 ## Project structure
 
 ```
 StockView-India/
-├── backend/            # FastAPI modular monolith (13 modules)
+├── backend/            # FastAPI modular monolith (14 modules)
 │   ├── app/            # Routers, services, models
 │   ├── docs/           # Per-module dev notes
 │   └── pyproject.toml
@@ -76,8 +78,9 @@ StockView-India/
 ├── docs/               # Full project documentation
 │   ├── setup.md        # Detailed setup guide
 │   ├── architecture.md
-│   ├── modules/        # 13 backend modules
+│   ├── modules/        # 14 backend modules
 │   └── pages/          # 12 frontend pages
+├── blockchain/         # Solidity contract + truffle deploy
 └── plan/               # Planning + phase checklists
 ```
 
@@ -87,7 +90,7 @@ Start with [`docs/setup.md`](docs/setup.md) for the full setup walkthrough
 (Windows / Mac / Linux, troubleshooting, env vars, daily workflow).
 
 The full handbook is at [`docs/`](docs/README.md) — architecture
-diagram, 13 backend module docs, 12 frontend page docs, database
+diagram, 14 backend module docs, 12 frontend page docs, database
 schema, glossary, viva questions.
 
 ## Tech stack

@@ -27,7 +27,7 @@ Reading top to bottom:
 | **Chart** | The full TradingView-style candlestick or line chart with overlays (SMA, BB, RSI, MACD, S/R, signals, SMC zones) |
 | **Today stats** | Open, prev close, day high/low, volume, avg volume |
 | **52-week range** | Low/high, current position bar, market cap |
-| **Fusion verdict** | A 320-wide card with the 3-layer blend (technical + ML + news) + confidence tier + active rules + reasons |
+| **Fusion verdict** | A 320-wide card with the 3-layer blend (technical + ML + news) + confidence tier + active rules + reasons + blockchain verification strip |
 | **News & mood** | News headlines with tone badges, news mood meter, chart mood meter |
 | **AI prediction** | Next 5 days ensemble verdict, model accuracies, LSTM forecast, top features |
 
@@ -52,6 +52,9 @@ You click the RELIANCE.NS mover on the dashboard. The stock terminal loads:
 - **Fusion verdict**: "BUY" badge with a +0.32 fused score. Three
   horizontal bars showing the 45/40/15 split. Confidence: HIGH. Top
   rules: "RSI oversold bounce", "MACD bullish cross", "Volume surge".
+  Below that, a strip reading "Prediction secured on blockchain —
+  Block #2". Reload the page and it becomes "Prediction already
+  verified on blockchain — Block #2" with no new transaction.
 - **News & mood**: News mood: POSITIVE (+0.18), Chart mood: BULLISH (+0.42).
   Top 3 chart signals: "RSI > 50", "MACD > signal", "Price above SMA-20".
   8 headlines listed with tone badges.

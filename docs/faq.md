@@ -82,6 +82,39 @@ detail.
   any entry signals. Check the parameters (e.g. RSI period too
   long, MA too slow). Try the default parameters first.
 
+## Blockchain
+
+- **The verdict card says "Blockchain verification is temporarily
+  unavailable".** The card hides chain errors on purpose. Check the
+  browser console: `503` means Ganache isn't running, `422` means the
+  contract address isn't configured, `502` means the chain was wiped
+  (restart Ganache, then re-run `blockchain/deploy.sh`), `404` just
+  means nothing has been written yet.
+- **Do I need Docker for this?** Only for the blockchain. Everything
+  else runs against the hosted database and Redis in your `.env`.
+- **My predictions disappeared after a restart.** Expected. Ganache
+  wipes its chain on every restart — it's a test node, not a database.
+  Re-run `blockchain/deploy.sh` and restart the backend.
+- **Does it cost money?** No. Ganache does not meter gas, and there is
+  no faucet or account to fund.
+- **Can I see a prediction's transaction hash in the UI?** Not yet. The
+  API returns `transaction_hash` on a write; the card only shows the
+  block number. On a real chain you would paste the hash into an
+  explorer.
+- **Can I delete or correct a wrong prediction?** No, and that's the
+  point. The next write is a new record, so the old one stays visible.
+- **Why did reloading not create a new prediction?** Because the
+  duplicate check found all ten fields unchanged and skipped the write.
+  That's intentional — it's what stops every page refresh costing a
+  transaction.
+- **Can I read back the history of one stock?** Not through the API.
+  There's a "latest overall" endpoint and the internal newest-for-one-
+  symbol lookup; no full-history endpoint.
+- **Does it work on a real chain?** The code would, unchanged — you'd
+  point `SV_BLOCKCHAIN_RPC_URL` at a real RPC and hold a funded key.
+  You'd also need to add access control to the contract, which is
+  currently `public`, and a gas strategy.
+
 ## API and integration
 
 - **Where are the API docs?** `http://localhost:8000/docs` (Swagger

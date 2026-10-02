@@ -14,6 +14,7 @@ flowchart LR
     FastAPI --> RD[(Redis - 60-300s cache)]
     FastAPI --> YF[Yahoo Finance - prices, history, info]
     FastAPI --> NSE[NSE India - quotes, options, FII/DII]
+    FastAPI -.->|optional| Ganache[Ganache - local chain]
     NSE -.->|on failure| Trendlyne[Trendlyne - backup]
     NSE -.->|on failure| Static[Static fixture - last resort]
 ```
@@ -33,8 +34,11 @@ flowchart LR
   third-party Python library; no API key required.
 - **NSE India** is the primary options / FII-DII / breadth source.
   Direct NSE API calls + an optional `nsepython` helper.
+- **Ganache** is optional and off by default. The blockchain module
+  writes predictions to it over JSON-RPC on port 7545. Nothing else
+  talks to the chain, and every other module works without it.
 
-## The backend — 13 modules
+## The backend — 14 modules
 
 ```mermaid
 flowchart TD
@@ -51,6 +55,7 @@ flowchart TD
     Main --> Port[portfolio]
     Main --> NSE[nse]
     Main --> Cmp[compare]
+    Main --> BC[blockchain]
     Auth --> Core[core: config, db, security, cache, deps]
     MD --> Core
     Inst --> Core
@@ -70,11 +75,18 @@ flowchart TD
     MD --> YF
     Sent --> RSS[3 RSS feeds]
     Sent --> FB[FinBERT optional]
+    BC --> MD
+    BC --> ML
+    BC --> Sig
+    BC --> Ana
+    BC --> Ganache[Ganache - local chain :7545]
 ```
 
 Cross-module dependencies are explicit: signals consumes analytics +
 sentiment + ML, SMC consumes analytics, ML consumes analytics,
 backtesting + alerts + portfolio + compare all consume market-data.
+Blockchain consumes market-data + ML + signals + analytics, but nothing
+consumes blockchain — the dependency runs one way.
 
 Each module is documented in [modules](modules/). The full technical
 detail (every function, request traces, gotchas) is in
@@ -214,7 +226,7 @@ backend/
 ├── app/
 │   ├── main.py                  # FastAPI app factory, router wiring
 │   ├── core/                    # config, db, security, cache, deps
-│   └── modules/                 # 13 modules
+│   └── modules/                 # 14 modules
 │       ├── auth/                # JWT, Argon2, rate limit
 │       ├── market_data/         # yfinance, 5-tier cache
 │       ├── instruments/         # JSON-backed search
@@ -227,8 +239,15 @@ backend/
 │       ├── alerts/              # price alarms
 │       ├── portfolio/           # watchlist + paper trading
 │       ├── nse/                 # NSE-specific + fallback
-│       └── compare/             # side-by-side
+│       ├── compare/             # side-by-side
+│       └── blockchain/          # predictions on a Ganache chain
 └── docs/                        # per-module dev notes
+
+blockchain/                      # repo root — Solidity + truffle
+├── contracts/StockPrediction.sol
+├── migrations/                  # truffle deploy scripts
+├── truffle-config.js
+└── deploy.sh                    # migrate + write address to backend/.env
 
 frontend/
 ├── app/                         # pages (App Router)

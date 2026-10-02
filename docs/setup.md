@@ -21,6 +21,10 @@ Total time: about 5 minutes.
 You do **not** need Docker, PostgreSQL, or Redis. The hosted
 services in the `.env` cover that.
 
+The one exception is the **blockchain** module, which needs Docker to run
+a local chain. That part is optional and skipped unless you want it —
+see [Blockchain (optional)](#blockchain-optional).
+
 ## The 5 steps
 
 ### 1. Open PowerShell and clone the repo
@@ -212,6 +216,88 @@ For the frontend, `package.json` already gives you:
 | `npm run build` | Build for production |
 | `npm run lint` | Run the linter |
 
+## Blockchain (optional)
+
+The rest of StockView works without this. The blockchain module writes
+predictions to a local chain so they cannot be silently edited. Skip
+this section entirely and the `/blockchain/*` endpoints just return
+`503` — nothing else notices.
+
+You need two extra tools:
+
+- **Docker Desktop** — runs Ganache. [docker.com/products/docker-desktop](https://www.docker.com/products/docker-desktop/)
+- **Truffle** — compiles and deploys the Solidity contract:
+  `npm install -g truffle`
+
+`web3` (the Python side) is already in `requirements.txt`, so step 3
+covers it. Nothing to add there.
+
+### Start Ganache
+
+From `StockView\backend`:
+
+```powershell
+docker compose up -d ganache
+```
+
+Ganache listens on **host port 7545** (internal 8545). Verify:
+
+```powershell
+curl.exe -X POST -H "Content-Type: application/json" `
+  --data '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}' `
+  http://127.0.0.1:7545
+```
+
+Expect `{"id":1,"jsonrpc":"2.0","result":"0x1"}`. The chain is empty —
+block 0 is where you start.
+
+### Deploy the contract
+
+From the **repo root** (one level above `backend`), not from `backend`:
+
+```powershell
+cd ..
+.\blockchain\deploy.sh
+```
+
+On macOS / Linux:
+
+```bash
+./blockchain/deploy.sh
+```
+
+The script checks Ganache is reachable, runs `truffle migrate --reset`,
+then writes the resulting address into `backend/.env` as
+`SV_BLOCKCHAIN_CONTRACT_ADDRESS`. You should see:
+
+```
+==> Contract address: 0xe78A0F7E598Cc8b0Bb87894B0F60dD2a88d6a8Ab
+==> Wrote SV_BLOCKCHAIN_CONTRACT_ADDRESS into backend/.env
+```
+
+### Restart the backend
+
+`deploy.sh` edits `.env`, so stop and restart `stockview-backend dev`.
+The `.env` file is gitignored, so this is a per-machine step.
+
+### Confirm it works
+
+```powershell
+curl.exe -b cookies.txt http://localhost:8000/api/v1/blockchain/status
+```
+
+Expect `"connected": true`. The full walkthrough — write, duplicate
+check, read back — is in
+[blockchain / how it works](modules/blockchain/how-it-works.md#verifying-it-by-hand).
+
+### One thing to remember
+
+**Ganache wipes its chain every time it restarts.** After any restart
+(or `docker compose restart`), the address in `.env` points at an empty
+chain and you get `502 no code at given address`. Re-run
+`.\blockchain\deploy.sh` and restart the backend. Nothing else is
+affected.
+
 ## Troubleshooting
 
 ### "running scripts is disabled on this system"
@@ -352,9 +438,39 @@ see:
 
 If you see that, the backend is up and talking to the database.
 
+### The stock page says "Blockchain verification is temporarily unavailable"
+
+The verdict card swallows blockchain errors on purpose, so this is the
+symptom for every chain problem. Check the browser console, then match
+the message:
+
+| Console / response | Meaning | Fix |
+|---|---|---|
+| `503 Could not connect to Ganache` | Node is down | `docker compose up -d ganache` |
+| `422 ... not configured` | `SV_BLOCKCHAIN_CONTRACT_ADDRESS` is empty | run `blockchain\deploy.sh` |
+| `502 no code at given address` | Ganache restarted and wiped the chain | run `blockchain\deploy.sh`, restart the backend |
+| `404 No blockchain predictions found` | Chain is empty | open any stock page once |
+
+`404` is the only one that is normal — it just means nothing has been
+written yet. The rest means the chain is not ready.
+
+### `truffle` is not recognised
+
+Truffle is not on your PATH. Either install it globally
+(`npm install -g truffle`) or run it through npx:
+
+```powershell
+npx truffle migrate --reset --network development
+```
+
+If `deploy.sh` reports it cannot reach Ganache, check the container is
+actually up with `docker ps` — `docker compose up -d ganache` returns
+before the RPC is ready, so give it a few seconds.
+
 ## Related
 
 - [Getting started](getting-started.md) — the 5-minute first-time user walkthrough.
 - [Database](database.md) — the schema and tables.
 - [Architecture](architecture.md) — the bigger picture.
 - [Demo guide](demo-guide.md) — the 7-minute walkthrough for examiners.
+- [Blockchain module](modules/blockchain/overview.md) — what the chain is for.

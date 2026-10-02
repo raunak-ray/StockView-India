@@ -30,10 +30,10 @@ for a 5-minute first-time walkthrough; look up the rest as needed.
 
 ## Detailed docs
 
-- **[Backend modules](modules/)** — 13 modules, each in a folder
+- **[Backend modules](modules/)** — 14 modules, each in a folder
   with three files: `overview.md` (what it is), `how-it-works.md`
   (the algorithm), `implementation.md` (the file map and request
-  traces). **39 files, 8,140 lines.**
+  traces). **42 files.**
 - **[Frontend pages](pages/)** — 12 pages, the same 3-file
   pattern. **36 files, 10,180 lines.**
 
@@ -58,6 +58,14 @@ for a 5-minute first-time walkthrough; look up the rest as needed.
 - **In-memory stores** — alerts and paper trading are kept in
   per-process dicts. A server restart wipes the data. The
   PostgreSQL migration is in `plan/todo.md` Phase A.
+- **Blockchain is optional and untested** — Ganache is not started by
+  the default `docker compose up`, so the four `/blockchain/*`
+  endpoints return `503` until you start it and run
+  `blockchain/deploy.sh`. There is no `test_blockchain.py`; the
+  module is verified by the manual walkthrough in
+  [blockchain/how-it-works.md](modules/blockchain/how-it-works.md#verifying-it-by-hand).
+  The duplicate check — nine chained equality comparisons — has no
+  automated regression guard.
 - **TATAMOTORS / ZOMATO renames** — the live tickers in 2026 are
   `TMPV.NS` and `ETERNAL.NS` (not `TATAMOTORS.NS` / `ZOMATO.NS`).
   Both legacy tickers still work via yfinance's alias map, but new

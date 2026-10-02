@@ -17,6 +17,7 @@ flowchart TD
     Chart --> PC[../../components/charts/price-chart]
     Chart --> Hooks[lib/hooks - useHistory, useIndicators, useSupportResistance, useSignal, useSmc]
     Verdict --> UF[lib/hooks/use-analytics - useFusion]
+    Verdict --> BAPI[lib/api/blockchain - autoSavePrediction]
     News --> US[lib/hooks/use-sentiment - useSentimentScore]
     AI --> UML[lib/hooks/use-ml - useMlPredict, useLstmForecast, useMlCapabilities]
     Star --> UW[lib/hooks/use-watchlist]
@@ -240,10 +241,10 @@ Below the chart, a small footer explains the colours:
 The bar count is shown so the user can see how many candles the chart
 contains.
 
-## 6. `components/verdict-card.tsx` (265 lines)
+## 6. `components/verdict-card.tsx` (364 lines)
 
-The 3-layer fusion card. Already covered in detail in `how-it-works.md`.
-Key parts:
+The 3-layer fusion card, plus the blockchain verification strip.
+Already covered in detail in `how-it-works.md`. Key parts:
 
 ### BlendBar
 
@@ -469,6 +470,11 @@ button is disabled while a mutation is pending.
 | `useAddToWatchlist` | `POST /portfolio/watchlist` | Mutation |
 | `useRemoveFromWatchlist` | `DELETE /portfolio/watchlist/{ticker}` | Mutation |
 
+One call on this page is **not** a hook: the verdict card calls
+`autoSavePrediction(symbol)` → `POST /blockchain/predictions/auto`
+directly from a `useEffect`. It is a write with no cache to manage, and
+it has no React Query entry above for that reason.
+
 The chart and verdict-related hooks all share the same `timeframe` as a
 query key fragment, so changing the timeframe re-fetches all of them
 together. The price quote is the only thing that auto-polls.
@@ -607,6 +613,17 @@ The hooks that **don't** refetch:
 - **Back navigation works.** Browser back from `/app/stocks/RELIANCE.NS`
   goes to the dashboard or wherever you came from. The router state
   preserves the referrer.
+- **The verdict card writes to the blockchain on every view.** The
+  `useEffect` POSTs whenever `fusion.data` changes. The server-side
+  duplicate check absorbs the repeats, so the chain does not grow — but
+  it is still a POST per page view, and it fires for every symbol opened.
+  If that matters, gate it behind a user action or a session flag.
+- **The blockchain strip hides all chain errors.** By design. If you are
+  debugging, the status code is only in `console.error` — the DOM shows
+  the same "temporarily unavailable" text for 422, 502, and 503.
+- **Ganache restart is invisible until it matters.** The strip keeps
+  saying "already verified" with a stale block number until a write
+  actually fails, because the duplicate path may never touch the chain.
 
 ## Related
 
@@ -617,6 +634,7 @@ The hooks that **don't** refetch:
   - [smc](../../modules/smc/overview.md) — smc.
   - [sentiment](../../modules/sentiment/overview.md) — sentiment score.
   - [ml](../../modules/ml/overview.md) — predict, lstm, capabilities.
+  - [blockchain](../../modules/blockchain/overview.md) — prediction ledger.
 - Sibling page: [dashboard](../dashboard/overview.md) — where the user
   comes from.
 - Charts: `frontend/components/charts/price-chart.tsx`.

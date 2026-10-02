@@ -190,7 +190,7 @@ reference. Cross-references in italics.
 ## Project terms
 
 - **Module** — a backend unit with one router, one service, and
-  optional models / schemas. 13 modules in total.
+  optional models / schemas. 14 modules in total.
 - **Page** — a frontend route. 12 pages in total.
 - **Hook** — a React Query wrapper around an API call. 30+ hooks
   in `frontend/lib/hooks/`.
@@ -209,6 +209,50 @@ reference. Cross-references in italics.
   to Python. The credit is in the SMC docs.
 - **Bruls et al. 2000** — the paper that introduced the
   squarified treemap algorithm.
+
+## Blockchain terms
+
+- **Blockchain** — an append-only ledger. Each block links to the
+  previous one by hash, so changing an earlier record means
+  recomputing everything after it. That is what "immutable" means.
+- **Smart contract** — code deployed on a chain that runs when
+  a transaction calls it. StockView has one: `StockPrediction`.
+- **Ganache** — a local Ethereum-compatible node. Runs in Docker on
+  port 7545. Free, instant, and **wiped on every restart** — the
+  reason blockchain errors show up after a machine reboot.
+- **Truffle** — the toolchain that compiles `.sol` and deploys
+  contracts (`truffle migrate`). Reads `blockchain/truffle-config.js`.
+- **Ethereum / Solidity** — Ethereum is the chain, Solidity (`^0.8.0`)
+  is the language the contract is written in.
+- **web3.py** — the Python library that talks JSON-RPC to a node.
+  Blocking — every call has to be moved off the FastAPI event loop.
+- **JSON-RPC** — the HTTP request format Ethereum nodes speak. The
+  backend posts `{"jsonrpc":"2.0","method":...}` to port 7545.
+- **ABI** — Application Binary Interface. The JSON list of a
+  contract's functions, so web3.py knows how to encode calls and
+  decode results. Committed at
+  `backend/app/modules/blockchain/abi/StockPrediction.json`.
+- **Gas** — the fee for a transaction on a real chain. Ganache does
+  not meter it, so StockView never deals with gas.
+- **Transaction hash** — the unique id of one write, e.g.
+  `0xe9373024…`. Proof the write happened; look it up on any block
+  explorer for a real chain.
+- **Block number** — the chain's height. The first deploy is block 1,
+  the first prediction is block 2.
+- **Checksum address** — an Ethereum address in mixed case where one
+  letter encodes a hash of the rest. web3.py rejects a bad checksum,
+  which is how a typo'd address is caught before it becomes a lost
+  transaction.
+- **×100 fixed point** — how prices are stored. Solidity has no
+  decimals, so ₹1167.70 is written as `116770` and read back by
+  dividing by 100. Percentages are *not* scaled — they are already
+  whole numbers.
+- **Immutable / write-once** — no `updatePrediction`, no
+  `deletePrediction`. A changed prediction is a **new** record, so
+  the history of what the model said survives.
+- **Duplicate suppression** — the check that stops the UI writing the
+  same prediction on every page view. Compares all ten fields against
+  the newest record for that symbol; identical means no transaction.
 
 ## Related
 

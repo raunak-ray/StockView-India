@@ -20,8 +20,9 @@ request traces).
 | **Portfolio** | Watchlist (PostgreSQL) + paper trading (in-memory), weighted-avg cost, 5 endpoints | [overview](portfolio/overview.md) · [how it works](portfolio/how-it-works.md) · [implementation](portfolio/implementation.md) · 675 lines |
 | **NSE** | Quote, option chain (PCR + max-pain), FII/DII, advances/declines — each with multi-layer fallback | [overview](nse/overview.md) · [how it works](nse/how-it-works.md) · [implementation](nse/implementation.md) · 720 lines |
 | **Compare** | 2–4 symbol side-by-side, price normalisation to base 100, in-place indicator compute | [overview](compare/overview.md) · [how it works](compare/how-it-works.md) · [implementation](compare/implementation.md) · 602 lines |
+| **Blockchain** | Predictions written to a Ganache chain, ×100 fixed-point scaling, duplicate suppression | [overview](blockchain/overview.md) · [how it works](blockchain/how-it-works.md) · [implementation](blockchain/implementation.md) · 689 lines · **no tests** |
 
-**Total: 13 modules · 39 files · 8,140 lines.**
+**Total: 14 modules · 42 files.**
 
 Database storage is covered in [Database](../database.md). Setup and
 troubleshooting are in [Setup](../setup.md). The architecture diagram is

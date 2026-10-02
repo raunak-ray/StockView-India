@@ -18,6 +18,12 @@ the 4 most common things that can break and how to recover.
    day, switch to TCS or INFY.
 4. **Have a backup page in mind.** If the stock terminal is slow,
    switch to the dashboard (it has its own data already cached).
+5. **If you're demoing the blockchain strip, start Ganache first.**
+   `docker compose -f backend/docker-compose.yml up -d ganache`, then
+   run `blockchain/deploy.sh` from the repo root. Skip this unless
+   you're using Option E — the strip degrades to a quiet "temporarily
+   unavailable" and nothing else breaks. See [Before you
+   start](setup.md#blockchain-optional).
 
 ## The script
 
@@ -62,9 +68,9 @@ On the stock terminal:
   reasons it was given. The reasoning is plain English, not
   jargon."
 
-### 3. Depth (2 min, pick two of the four)
+### 3. Depth (2 min, pick two of the five)
 
-Show two of the following four, in any order. Each takes about 1
+Show two of the following five, in any order. Each takes about 1
 minute.
 
 **Option A — Chart with indicators (1 min)**
@@ -90,10 +96,31 @@ minute.
 **Option D — Backtest (1 min)**
 - Navigate to `/app/backtest`. Pick RELIANCE, SMA Cross strategy,
   1 year. Click "Run backtest".
-- "This runs the strategy against historical data. The chart at
-  the top is the equity curve — your ₹1,00,000 grew to ₹X. The
+- "This runs the strategy against historical data. The chart at the
+  top is the equity curve — your ₹1,00,000 grew to ₹X. The
   numbers below are CAGR, max drawdown, Sharpe, win rate, and
   more."
+
+**Option E — Blockchain strip (1 min)**
+- Point at the strip just under the fusion verdict. "That prediction
+  was just written to a local Ethereum chain by a Solidity smart
+  contract. It gives you the block number."
+- "There's no delete endpoint and no update endpoint. If the model
+  changes its mind tomorrow, that's a *new* record — so you can prove
+  what it said and when. A database row could be edited; this
+  can't."
+- "Reload the page. It says 'already verified' and the block number
+  doesn't change — the backend compares all ten fields against the
+  newest record and skips the transaction if nothing moved. That's
+  what stops every page refresh costing a write."
+- "The chain is Ganache, in Docker. It's local, so it's not
+  permanent — restarting Ganache wipes it. On a real chain you'd
+  point the same code at a testnet or mainnet."
+
+This is the strongest differentiator in the demo, and the duplicate
+check is the part examiners push on — it shows the write is designed,
+not just wired up.
+
 
 ### 4. Honesty (1 min)
 
@@ -116,7 +143,8 @@ This builds trust. Examiners appreciate honesty about limitations.
 > refreshes once and retries the request, so the UI never sees a
 > 401. On the backend, it's FastAPI with one module per concern —
 > auth, market data, analytics, signals, ML, backtesting, alerts,
-> portfolio, NSE, compare. Postgres holds accounts and
+> portfolio, NSE, compare, and a blockchain module that writes each
+> prediction to a local Ethereum chain. Postgres holds accounts and
 > watchlists. Redis caches the upstream responses. The signals
 > module does a 3-layer fusion — technical rules, ML prediction,
 > and news mood — each with a weight. Missing pieces re-weight
@@ -204,12 +232,34 @@ restart it.
 **What to say**: "The backend died — let me restart it. (Restart.)"
 This is normal and quick. Don't panic.
 
+### Verdict card says "Blockchain verification is temporarily unavailable"
+
+**Symptom**: The strip under the fusion verdict shows the unavailable
+message. Only affects Option E.
+
+**Recovery**: Open the browser console and read the status code.
+
+- `503` — Ganache isn't running. `docker compose -f
+  backend/docker-compose.yml up -d ganache`, then reload.
+- `502` / `422` — the contract isn't deployed, or Ganache restarted and
+  wiped the chain. Run `blockchain/deploy.sh` from the repo root and
+  restart the backend.
+- `404` — normal. Nothing has been written yet; reload once to create
+  the first record.
+
+**What to say**: "The chain is a separate local service, so it's the
+thing that goes down first. The verdict itself is unaffected — that
+part still works." Then reload and carry on.
+
+Never start Ganache mid-demo. If Option E isn't working, skip it —
+the other four options don't touch the chain.
+
 ## After the demo
 
 - **Take a few questions.** Common questions are in [Viva questions](viva-questions.md).
 - **Open the source code** if asked. Each per-module and per-page
   doc has the file map; you can navigate to any file quickly.
-- **Show the docs.** The `docs/` folder has 13 backend module docs
+- **Show the docs.** The `docs/` folder has 14 backend module docs
   and 12 frontend page docs, each with overview, how-it-works, and
   implementation files. ~21,500 lines of documentation.
 

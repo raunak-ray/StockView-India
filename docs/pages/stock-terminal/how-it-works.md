@@ -231,7 +231,8 @@ Below the bar: market cap from `info.data.info.marketCap`.
 
 ## Section 5 — Fusion verdict
 
-`verdict-card.tsx` (265 lines). A 320-wide card with the 3-layer blend.
+`verdict-card.tsx` (364 lines). A 320-wide card with the 3-layer blend
+and the blockchain verification strip.
 
 ### Data
 
@@ -285,6 +286,61 @@ muted).
 Below the bars, the card shows the top 6 active rules and the top
 reasons. Each is a small bullet. The list is sourced from
 `fusion.data.layers.technical.signals` and `.reasons`.
+
+### Blockchain verification strip
+
+Directly under the verdict description, a bordered strip reports whether
+the prediction is on the chain.
+
+```typescript
+const [blockchainState, setBlockchainState] =
+  useState<BlockchainState>("idle");          // idle | saving | saved | duplicate | error
+const [blockchainBlock, setBlockchainBlock] = useState<number | null>(null);
+
+useEffect(() => {
+  if (!fusion.data) return;
+  let cancelled = false;
+
+  (async () => {
+    try {
+      setBlockchainState("saving");
+      const result = await autoSavePrediction(symbol);
+      if (cancelled) return;
+      setBlockchainState(result.saved ? "saved" : "duplicate");
+      setBlockchainBlock(result.block_number);
+    } catch (error) {
+      if (!cancelled) {
+        console.error("Blockchain auto-save failed:", error);
+        setBlockchainState("error");
+        setBlockchainBlock(null);
+      }
+    }
+  })();
+
+  return () => { cancelled = true; };
+}, [fusion.data, symbol]);
+```
+
+Three things worth knowing:
+
+- **The key is `fusion.data`, not the fetch.** The write only fires once
+  the fusion response has arrived, so it never runs on an error state or
+  against half-loaded data.
+- **`cancelled` guards the post-await writes.** Switching symbols while
+  the POST is in flight would otherwise stamp the old block number onto
+  the new card.
+- **`saved` and `duplicate` share one render branch** and differ only in
+  label, because they mean the same thing visually — this prediction is
+  on the chain.
+
+The `error` state deliberately does **not** show the HTTP status. A 503
+from a stopped Ganache is not the user's problem, so the strip says
+"temporarily unavailable" and the detail goes to `console.error` only.
+
+The call is a raw `api.post` rather than a React Query hook — it's a
+fire-and-forget write whose only job is to flip a label, so a cache
+entry would mean nothing. See the
+[blockchain module](../../modules/blockchain/implementation.md#8-frontend-wiring).
 
 ## Section 6 — News & mood
 

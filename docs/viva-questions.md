@@ -14,8 +14,11 @@ linked doc for the full technical detail.
 - **Is this financial advice?** No. Every prediction is labelled
   educational. The "BUY / HOLD / SELL" verdict is a model output, not
   a recommendation.
-- **Where is the blockchain from the old plan?** Dropped by decision;
-  the old prototype code remains only in the reference-only `app.py`.
+- **Where is the blockchain from the old plan?** It was dropped during
+  planning, then brought back as a real module. The early Streamlit
+  prototype still lives in the reference-only `app.py`. See
+  [Blockchain](#blockchain) below and
+  [blockchain/overview.md](modules/blockchain/overview.md).
 
 ## Architecture
 
@@ -185,11 +188,61 @@ linked doc for the full technical detail.
   a model output, not a recommendation. Real trading needs a paid
   data source, a regulated broker, and proper risk management.
 
+## Blockchain
+
+- **Why put predictions on a blockchain?** Immutability. A prediction is
+  a claim about the future that someone might want to check later — did
+  the model say BUY before the drop, or after? A database row can be
+  edited. A chain entry cannot, without rewriting every block after it.
+- **Is the prediction verifiable?** The data is, yes; the *prediction*
+  is not. The chain proves a number was written at a block, not that the
+  number was any good. Blockchain is an audit trail, not a correctness
+  guarantee. Say this if you're asked.
+- **Why not just add a table?** An append-only table plus audit logs
+  would be cheaper and simpler. Blockchain is the stronger guarantee,
+  and it is a portfolio/placement talking point. It is not the right
+  tool if all you need is history.
+- **Which chain?** Ganache — a local Ethereum node in Docker on port
+  7545. No gas, no faucet, no accounts. The contract is Solidity,
+  compiled and deployed with Truffle; the backend talks to it with
+  `web3.py` over JSON-RPC.
+- **Why is it wiped on every restart?** Because Ganache is a test
+  chain, not a persistent store. That's the main limitation and the
+  reason blockchain endpoints return 502 after a restart. Re-running
+  `blockchain/deploy.sh` fixes it.
+- **How do you avoid writing on every page view?** The UI posts the
+  prediction whenever fusion resolves. The backend compares all ten
+  fields against the newest record for that symbol and returns
+  `saved: false` with the existing block number if nothing changed. So
+  reloading ten times is one transaction, not ten.
+- **Why multiply prices by 100?** Solidity has no decimal type.
+  `uint256` can't hold ₹1167.70 — it truncates to 1167. The contract
+  stores `116770` and the read path divides by 100. Percentages aren't
+  scaled because they're already whole numbers.
+- **Why is `signalScore` a signed type?** The fusion score runs from
+  −1.0 to +1.0. A `uint256` would make every negative verdict
+  uncallable.
+- **How do you keep a blocking library off the event loop?**
+  `web3.py` is synchronous. Every chain call is wrapped in
+  `anyio.to_thread.run_sync` or Starlette's `run_in_threadpool`,
+  matching the pattern already used by the ML and analytics modules.
+  Without it one slow receipt wait freezes every concurrent request.
+- **Is the chain query fast?** Not for long. The duplicate check walks
+  backwards over records — one RPC call each. Fine for tens of
+  predictions, slow for thousands. The fix is an on-chain index
+  mapping symbol → prediction ids, which needs a contract change.
+- **Does it have tests?** No, and that's the honest answer. Every other
+  module has a `tests/test_*.py`. Blockchain is verified by a manual
+  walkthrough against a live chain — write, duplicate-check, read back,
+  and a raw-storage read to confirm the scaling. The next thing to build
+  is `test_blockchain.py` with web3 mocked.
+
 ## Code quality
 
 - **What tests are there?** Unit tests for the service layer
   (`backend/tests/`), API tests for the routers, and snapshot
-  tests for the frontend. CI runs all of them.
+  tests for the frontend. CI runs all of them. The blockchain module is
+  the one gap — no `test_blockchain.py` yet.
 - **What about type checking?** `mypy` on the backend, TypeScript on
   the frontend. The frontend builds fail on type errors.
 - **How is the code organised?** One module per concern on the
