@@ -1,0 +1,611 @@
+{
+ "source": "NSE ind_nifty100list.csv",
+ "fetched_on": "2026-10-02",
+ "nifty100_total": 100,
+ "covered": 86,
+ "note": "Nifty 100 members that also exist in the app instrument master (646 stocks).",
+ "stocks": [
+  {
+   "symbol": "ABB.NS",
+   "base_symbol": "ABB",
+   "display_name": "ABB India",
+   "nse_name": "ABB India Ltd.",
+   "industry": "Capital Goods"
+  },
+  {
+   "symbol": "ADANIENT.NS",
+   "base_symbol": "ADANIENT",
+   "display_name": "Adani Enterprises",
+   "nse_name": "Adani Enterprises Ltd.",
+   "industry": "Metals & Mining"
+  },
+  {
+   "symbol": "ADANIGREEN.NS",
+   "base_symbol": "ADANIGREEN",
+   "display_name": "Adani Green",
+   "nse_name": "Adani Green Energy Ltd.",
+   "industry": "Power"
+  },
+  {
+   "symbol": "ADANIPORTS.NS",
+   "base_symbol": "ADANIPORTS",
+   "display_name": "Adani Ports",
+   "nse_name": "Adani Ports and Special Economic Zone Ltd.",
+   "industry": "Services"
+  },
+  {
+   "symbol": "ADANIPOWER.NS",
+   "base_symbol": "ADANIPOWER",
+   "display_name": "Adani Power",
+   "nse_name": "Adani Power Ltd.",
+   "industry": "Power"
+  },
+  {
+   "symbol": "AMBUJACEM.NS",
+   "base_symbol": "AMBUJACEM",
+   "display_name": "Ambuja Cement",
+   "nse_name": "Ambuja Cements Ltd.",
+   "industry": "Construction Materials"
+  },
+  {
+   "symbol": "APOLLOHOSP.NS",
+   "base_symbol": "APOLLOHOSP",
+   "display_name": "Apollo Hospitals",
+   "nse_name": "Apollo Hospitals Enterprise Ltd.",
+   "industry": "Healthcare"
+  },
+  {
+   "symbol": "ASIANPAINT.NS",
+   "base_symbol": "ASIANPAINT",
+   "display_name": "Asian Paints",
+   "nse_name": "Asian Paints Ltd.",
+   "industry": "Consumer Durables"
+  },
+  {
+   "symbol": "DMART.NS",
+   "base_symbol": "DMART",
+   "display_name": "Avenue Supermarts (DMart)",
+   "nse_name": "Avenue Supermarts Ltd.",
+   "industry": "Consumer Services"
+  },
+  {
+   "symbol": "AXISBANK.NS",
+   "base_symbol": "AXISBANK",
+   "display_name": "Axis Bank",
+   "nse_name": "Axis Bank Ltd.",
+   "industry": "Financial Services"
+  },
+  {
+   "symbol": "BSE.NS",
+   "base_symbol": "BSE",
+   "display_name": "BSE Ltd",
+   "nse_name": "BSE Ltd.",
+   "industry": "Financial Services"
+  },
+  {
+   "symbol": "BAJAJ-AUTO.NS",
+   "base_symbol": "BAJAJ-AUTO",
+   "display_name": "Bajaj Auto",
+   "nse_name": "Bajaj Auto Ltd.",
+   "industry": "Automobile and Auto Components"
+  },
+  {
+   "symbol": "BAJFINANCE.NS",
+   "base_symbol": "BAJFINANCE",
+   "display_name": "Bajaj Finance",
+   "nse_name": "Bajaj Finance Ltd.",
+   "industry": "Financial Services"
+  },
+  {
+   "symbol": "BAJAJFINSV.NS",
+   "base_symbol": "BAJAJFINSV",
+   "display_name": "Bajaj Finserv",
+   "nse_name": "Bajaj Finserv Ltd.",
+   "industry": "Financial Services"
+  },
+  {
+   "symbol": "BANKBARODA.NS",
+   "base_symbol": "BANKBARODA",
+   "display_name": "Bank of Baroda",
+   "nse_name": "Bank of Baroda",
+   "industry": "Financial Services"
+  },
+  {
+   "symbol": "BEL.NS",
+   "base_symbol": "BEL",
+   "display_name": "Bharat Electronics",
+   "nse_name": "Bharat Electronics Ltd.",
+   "industry": "Capital Goods"
+  },
+  {
+   "symbol": "BPCL.NS",
+   "base_symbol": "BPCL",
+   "display_name": "BPCL",
+   "nse_name": "Bharat Petroleum Corporation Ltd.",
+   "industry": "Oil Gas & Consumable Fuels"
+  },
+  {
+   "symbol": "BHARTIARTL.NS",
+   "base_symbol": "BHARTIARTL",
+   "display_name": "Bharti Airtel",
+   "nse_name": "Bharti Airtel Ltd.",
+   "industry": "Telecommunication"
+  },
+  {
+   "symbol": "BOSCHLTD.NS",
+   "base_symbol": "BOSCHLTD",
+   "display_name": "Bosch",
+   "nse_name": "Bosch Ltd.",
+   "industry": "Automobile and Auto Components"
+  },
+  {
+   "symbol": "BRITANNIA.NS",
+   "base_symbol": "BRITANNIA",
+   "display_name": "Britannia",
+   "nse_name": "Britannia Industries Ltd.",
+   "industry": "Fast Moving Consumer Goods"
+  },
+  {
+   "symbol": "CGPOWER.NS",
+   "base_symbol": "CGPOWER",
+   "display_name": "Murugappa Group (CG)",
+   "nse_name": "CG Power and Industrial Solutions Ltd.",
+   "industry": "Capital Goods"
+  },
+  {
+   "symbol": "CANBK.NS",
+   "base_symbol": "CANBK",
+   "display_name": "Canara Bank",
+   "nse_name": "Canara Bank",
+   "industry": "Financial Services"
+  },
+  {
+   "symbol": "CHOLAFIN.NS",
+   "base_symbol": "CHOLAFIN",
+   "display_name": "Cholamandalam Finance",
+   "nse_name": "Cholamandalam Investment and Finance Company Ltd.",
+   "industry": "Financial Services"
+  },
+  {
+   "symbol": "CIPLA.NS",
+   "base_symbol": "CIPLA",
+   "display_name": "Cipla",
+   "nse_name": "Cipla Ltd.",
+   "industry": "Healthcare"
+  },
+  {
+   "symbol": "COALINDIA.NS",
+   "base_symbol": "COALINDIA",
+   "display_name": "Coal India",
+   "nse_name": "Coal India Ltd.",
+   "industry": "Oil Gas & Consumable Fuels"
+  },
+  {
+   "symbol": "CUMMINSIND.NS",
+   "base_symbol": "CUMMINSIND",
+   "display_name": "Cummins India",
+   "nse_name": "Cummins India Ltd.",
+   "industry": "Capital Goods"
+  },
+  {
+   "symbol": "DLF.NS",
+   "base_symbol": "DLF",
+   "display_name": "DLF",
+   "nse_name": "DLF Ltd.",
+   "industry": "Realty"
+  },
+  {
+   "symbol": "DIVISLAB.NS",
+   "base_symbol": "DIVISLAB",
+   "display_name": "Divi's Labs",
+   "nse_name": "Divi's Laboratories Ltd.",
+   "industry": "Healthcare"
+  },
+  {
+   "symbol": "DRREDDY.NS",
+   "base_symbol": "DRREDDY",
+   "display_name": "Dr Reddy's",
+   "nse_name": "Dr. Reddy's Laboratories Ltd.",
+   "industry": "Healthcare"
+  },
+  {
+   "symbol": "EICHERMOT.NS",
+   "base_symbol": "EICHERMOT",
+   "display_name": "Eicher Motors",
+   "nse_name": "Eicher Motors Ltd.",
+   "industry": "Automobile and Auto Components"
+  },
+  {
+   "symbol": "GAIL.NS",
+   "base_symbol": "GAIL",
+   "display_name": "Gail India",
+   "nse_name": "GAIL (India) Ltd.",
+   "industry": "Oil Gas & Consumable Fuels"
+  },
+  {
+   "symbol": "GODREJCP.NS",
+   "base_symbol": "GODREJCP",
+   "display_name": "Godrej Consumer",
+   "nse_name": "Godrej Consumer Products Ltd.",
+   "industry": "Fast Moving Consumer Goods"
+  },
+  {
+   "symbol": "HCLTECH.NS",
+   "base_symbol": "HCLTECH",
+   "display_name": "HCL Tech",
+   "nse_name": "HCL Technologies Ltd.",
+   "industry": "Information Technology"
+  },
+  {
+   "symbol": "HDFCAMC.NS",
+   "base_symbol": "HDFCAMC",
+   "display_name": "HDFC AMC",
+   "nse_name": "HDFC Asset Management Company Ltd.",
+   "industry": "Financial Services"
+  },
+  {
+   "symbol": "HDFCBANK.NS",
+   "base_symbol": "HDFCBANK",
+   "display_name": "HDFC Bank",
+   "nse_name": "HDFC Bank Ltd.",
+   "industry": "Financial Services"
+  },
+  {
+   "symbol": "HDFCLIFE.NS",
+   "base_symbol": "HDFCLIFE",
+   "display_name": "HDFC Life",
+   "nse_name": "HDFC Life Insurance Company Ltd.",
+   "industry": "Financial Services"
+  },
+  {
+   "symbol": "HINDALCO.NS",
+   "base_symbol": "HINDALCO",
+   "display_name": "Hindalco",
+   "nse_name": "Hindalco Industries Ltd.",
+   "industry": "Metals & Mining"
+  },
+  {
+   "symbol": "HAL.NS",
+   "base_symbol": "HAL",
+   "display_name": "HAL",
+   "nse_name": "Hindustan Aeronautics Ltd.",
+   "industry": "Capital Goods"
+  },
+  {
+   "symbol": "HINDUNILVR.NS",
+   "base_symbol": "HINDUNILVR",
+   "display_name": "HUL",
+   "nse_name": "Hindustan Unilever Ltd.",
+   "industry": "Fast Moving Consumer Goods"
+  },
+  {
+   "symbol": "ICICIBANK.NS",
+   "base_symbol": "ICICIBANK",
+   "display_name": "ICICI Bank",
+   "nse_name": "ICICI Bank Ltd.",
+   "industry": "Financial Services"
+  },
+  {
+   "symbol": "ITC.NS",
+   "base_symbol": "ITC",
+   "display_name": "ITC (Paperboards)",
+   "nse_name": "ITC Ltd.",
+   "industry": "Fast Moving Consumer Goods"
+  },
+  {
+   "symbol": "IOC.NS",
+   "base_symbol": "IOC",
+   "display_name": "IOC",
+   "nse_name": "Indian Oil Corporation Ltd.",
+   "industry": "Oil Gas & Consumable Fuels"
+  },
+  {
+   "symbol": "IRFC.NS",
+   "base_symbol": "IRFC",
+   "display_name": "Indian Railways Finance",
+   "nse_name": "Indian Railway Finance Corporation Ltd.",
+   "industry": "Financial Services"
+  },
+  {
+   "symbol": "INFY.NS",
+   "base_symbol": "INFY",
+   "display_name": "Infosys",
+   "nse_name": "Infosys Ltd.",
+   "industry": "Information Technology"
+  },
+  {
+   "symbol": "INDIGO.NS",
+   "base_symbol": "INDIGO",
+   "display_name": "Interglobe Aviation",
+   "nse_name": "InterGlobe Aviation Ltd.",
+   "industry": "Services"
+  },
+  {
+   "symbol": "JSWSTEEL.NS",
+   "base_symbol": "JSWSTEEL",
+   "display_name": "JSW Steel",
+   "nse_name": "JSW Steel Ltd.",
+   "industry": "Metals & Mining"
+  },
+  {
+   "symbol": "JINDALSTEL.NS",
+   "base_symbol": "JINDALSTEL",
+   "display_name": "Jindal Steel",
+   "nse_name": "Jindal Steel Ltd.",
+   "industry": "Metals & Mining"
+  },
+  {
+   "symbol": "KOTAKBANK.NS",
+   "base_symbol": "KOTAKBANK",
+   "display_name": "Kotak Bank",
+   "nse_name": "Kotak Mahindra Bank Ltd.",
+   "industry": "Financial Services"
+  },
+  {
+   "symbol": "LT.NS",
+   "base_symbol": "LT",
+   "display_name": "Larsen & Toubro",
+   "nse_name": "Larsen & Toubro Ltd.",
+   "industry": "Construction"
+  },
+  {
+   "symbol": "M&M.NS",
+   "base_symbol": "M&M",
+   "display_name": "Mahindra & Mahindra",
+   "nse_name": "Mahindra & Mahindra Ltd.",
+   "industry": "Automobile and Auto Components"
+  },
+  {
+   "symbol": "MARUTI.NS",
+   "base_symbol": "MARUTI",
+   "display_name": "Maruti Suzuki",
+   "nse_name": "Maruti Suzuki India Ltd.",
+   "industry": "Automobile and Auto Components"
+  },
+  {
+   "symbol": "MAXHEALTH.NS",
+   "base_symbol": "MAXHEALTH",
+   "display_name": "Max Healthcare",
+   "nse_name": "Max Healthcare Institute Ltd.",
+   "industry": "Healthcare"
+  },
+  {
+   "symbol": "MAZDOCK.NS",
+   "base_symbol": "MAZDOCK",
+   "display_name": "Mazagon Dock",
+   "nse_name": "Mazagoan Dock Shipbuilders Ltd.",
+   "industry": "Capital Goods"
+  },
+  {
+   "symbol": "MUTHOOTFIN.NS",
+   "base_symbol": "MUTHOOTFIN",
+   "display_name": "Muthoot Finance",
+   "nse_name": "Muthoot Finance Ltd.",
+   "industry": "Financial Services"
+  },
+  {
+   "symbol": "NTPC.NS",
+   "base_symbol": "NTPC",
+   "display_name": "NTPC",
+   "nse_name": "NTPC Ltd.",
+   "industry": "Power"
+  },
+  {
+   "symbol": "NESTLEIND.NS",
+   "base_symbol": "NESTLEIND",
+   "display_name": "Nestle India",
+   "nse_name": "Nestle India Ltd.",
+   "industry": "Fast Moving Consumer Goods"
+  },
+  {
+   "symbol": "ONGC.NS",
+   "base_symbol": "ONGC",
+   "display_name": "ONGC",
+   "nse_name": "Oil & Natural Gas Corporation Ltd.",
+   "industry": "Oil Gas & Consumable Fuels"
+  },
+  {
+   "symbol": "PIDILITIND.NS",
+   "base_symbol": "PIDILITIND",
+   "display_name": "Pidilite",
+   "nse_name": "Pidilite Industries Ltd.",
+   "industry": "Chemicals"
+  },
+  {
+   "symbol": "POLYCAB.NS",
+   "base_symbol": "POLYCAB",
+   "display_name": "Polycab India",
+   "nse_name": "Polycab India Ltd.",
+   "industry": "Capital Goods"
+  },
+  {
+   "symbol": "PFC.NS",
+   "base_symbol": "PFC",
+   "display_name": "Power Finance Corp",
+   "nse_name": "Power Finance Corporation Ltd.",
+   "industry": "Financial Services"
+  },
+  {
+   "symbol": "POWERGRID.NS",
+   "base_symbol": "POWERGRID",
+   "display_name": "Power Grid",
+   "nse_name": "Power Grid Corporation of India Ltd.",
+   "industry": "Power"
+  },
+  {
+   "symbol": "PNB.NS",
+   "base_symbol": "PNB",
+   "display_name": "Punjab National Bank",
+   "nse_name": "Punjab National Bank",
+   "industry": "Financial Services"
+  },
+  {
+   "symbol": "RELIANCE.NS",
+   "base_symbol": "RELIANCE",
+   "display_name": "Reliance Industries",
+   "nse_name": "Reliance Industries Ltd.",
+   "industry": "Oil Gas & Consumable Fuels"
+  },
+  {
+   "symbol": "SBILIFE.NS",
+   "base_symbol": "SBILIFE",
+   "display_name": "SBI Life",
+   "nse_name": "SBI Life Insurance Company Ltd.",
+   "industry": "Financial Services"
+  },
+  {
+   "symbol": "MOTHERSON.NS",
+   "base_symbol": "MOTHERSON",
+   "display_name": "Samvardhana Motherson",
+   "nse_name": "Samvardhana Motherson International Ltd.",
+   "industry": "Automobile and Auto Components"
+  },
+  {
+   "symbol": "SHRIRAMFIN.NS",
+   "base_symbol": "SHRIRAMFIN",
+   "display_name": "Shriram Finance",
+   "nse_name": "Shriram Finance Ltd.",
+   "industry": "Financial Services"
+  },
+  {
+   "symbol": "SIEMENS.NS",
+   "base_symbol": "SIEMENS",
+   "display_name": "Siemens",
+   "nse_name": "Siemens Ltd.",
+   "industry": "Capital Goods"
+  },
+  {
+   "symbol": "SOLARINDS.NS",
+   "base_symbol": "SOLARINDS",
+   "display_name": "Solar Industries",
+   "nse_name": "Solar Industries India Ltd.",
+   "industry": "Chemicals"
+  },
+  {
+   "symbol": "SBIN.NS",
+   "base_symbol": "SBIN",
+   "display_name": "SBI",
+   "nse_name": "State Bank of India",
+   "industry": "Financial Services"
+  },
+  {
+   "symbol": "SUNPHARMA.NS",
+   "base_symbol": "SUNPHARMA",
+   "display_name": "Sun Pharma",
+   "nse_name": "Sun Pharmaceutical Industries Ltd.",
+   "industry": "Healthcare"
+  },
+  {
+   "symbol": "TVSMOTOR.NS",
+   "base_symbol": "TVSMOTOR",
+   "display_name": "TVS Motor",
+   "nse_name": "TVS Motor Company Ltd.",
+   "industry": "Automobile and Auto Components"
+  },
+  {
+   "symbol": "TCS.NS",
+   "base_symbol": "TCS",
+   "display_name": "Tata Consultancy",
+   "nse_name": "Tata Consultancy Services Ltd.",
+   "industry": "Information Technology"
+  },
+  {
+   "symbol": "TATACONSUM.NS",
+   "base_symbol": "TATACONSUM",
+   "display_name": "Tata Consumer",
+   "nse_name": "Tata Consumer Products Ltd.",
+   "industry": "Fast Moving Consumer Goods"
+  },
+  {
+   "symbol": "TATAPOWER.NS",
+   "base_symbol": "TATAPOWER",
+   "display_name": "Tata Power Renewable",
+   "nse_name": "Tata Power Co. Ltd.",
+   "industry": "Power"
+  },
+  {
+   "symbol": "TATASTEEL.NS",
+   "base_symbol": "TATASTEEL",
+   "display_name": "Tata Steel BSL",
+   "nse_name": "Tata Steel Ltd.",
+   "industry": "Metals & Mining"
+  },
+  {
+   "symbol": "TECHM.NS",
+   "base_symbol": "TECHM",
+   "display_name": "Tech Mahindra",
+   "nse_name": "Tech Mahindra Ltd.",
+   "industry": "Information Technology"
+  },
+  {
+   "symbol": "TITAN.NS",
+   "base_symbol": "TITAN",
+   "display_name": "Titan Company",
+   "nse_name": "Titan Company Ltd.",
+   "industry": "Consumer Durables"
+  },
+  {
+   "symbol": "TORNTPHARM.NS",
+   "base_symbol": "TORNTPHARM",
+   "display_name": "Torrent Pharma",
+   "nse_name": "Torrent Pharmaceuticals Ltd.",
+   "industry": "Healthcare"
+  },
+  {
+   "symbol": "TRENT.NS",
+   "base_symbol": "TRENT",
+   "display_name": "Trent (Westside)",
+   "nse_name": "Trent Ltd.",
+   "industry": "Consumer Services"
+  },
+  {
+   "symbol": "ULTRACEMCO.NS",
+   "base_symbol": "ULTRACEMCO",
+   "display_name": "UltraTech Cement",
+   "nse_name": "UltraTech Cement Ltd.",
+   "industry": "Construction Materials"
+  },
+  {
+   "symbol": "UNIONBANK.NS",
+   "base_symbol": "UNIONBANK",
+   "display_name": "Union Bank",
+   "nse_name": "Union Bank of India",
+   "industry": "Financial Services"
+  },
+  {
+   "symbol": "VBL.NS",
+   "base_symbol": "VBL",
+   "display_name": "Varun Beverages",
+   "nse_name": "Varun Beverages Ltd.",
+   "industry": "Fast Moving Consumer Goods"
+  },
+  {
+   "symbol": "VEDL.NS",
+   "base_symbol": "VEDL",
+   "display_name": "Vedanta",
+   "nse_name": "Vedanta Ltd.",
+   "industry": "Metals & Mining"
+  },
+  {
+   "symbol": "IDEA.NS",
+   "base_symbol": "IDEA",
+   "display_name": "Vodafone Idea",
+   "nse_name": "Vodafone Idea Ltd.",
+   "industry": "Telecommunication"
+  },
+  {
+   "symbol": "WIPRO.NS",
+   "base_symbol": "WIPRO",
+   "display_name": "Wipro",
+   "nse_name": "Wipro Ltd.",
+   "industry": "Information Technology"
+  },
+  {
+   "symbol": "ZYDUSLIFE.NS",
+   "base_symbol": "ZYDUSLIFE",
+   "display_name": "Zydus Lifesciences",
+   "nse_name": "Zydus Lifesciences Ltd.",
+   "industry": "Healthcare"
+  }
+ ]
+}
