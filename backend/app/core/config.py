@@ -1,3 +1,4 @@
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -12,6 +13,18 @@ class Settings(BaseSettings):
     # postgresql+asyncpg://postgres:postgres@localhost:5432/stockview
     database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/stockview"
     redis_url: str = "redis://localhost:6379/0"
+
+    # Second, isolated database holding ONLY scraped news articles. News is the
+    # bulkiest and fastest-growing data we store, so it gets its own budget
+    # rather than competing with user/app rows in `database_url`.
+    # Neon bills storage per *project*, so pointing this at a second project is
+    # what actually buys a separate allowance (a second database inside one
+    # project would share the same 0.5 GB).
+    # Accepts SV_DATABASE_NEWS_URL (canonical) or SV_NEWS_DB_URL.
+    news_db_url: str = Field(
+        default="postgresql+asyncpg://postgres:postgres@localhost:5432/stockview_news",
+        validation_alias=AliasChoices("SV_DATABASE_NEWS_URL", "SV_NEWS_DB_URL"),
+    )
 
     # Auth
     secret_key: str = "change-me"
