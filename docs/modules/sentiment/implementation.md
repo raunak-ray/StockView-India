@@ -13,12 +13,13 @@ flowflowchart TD
     Service --> OPT[transformers - optional FinBERT]
     Service --> AnSvc[analytics.service - candles_to_df, add_indicators]
     Service --> MD[market_data.service - candles]
+    Service -->|lazy import| NewsSvc[news.sentiment.service - stored bundle]
     Signals[signals.service.get_fusion] -->|imports| Service
 ```
 
-## 1. `backend/app/modules/sentiment/service.py` (397 lines)
+## 1. `backend/app/modules/sentiment/service.py` (544 lines)
 
-Four logical sections, top to bottom.
+Five logical sections, top to bottom.
 
 ### Section A — constants and optional import
 
@@ -123,7 +124,12 @@ flowchart TD
     Label -->|no| Neut[NEUTRAL]
 ```
 
-Returns `{ score, label, detail: [{ headline, label, conf, score }, ...] }`.
+Returns `{ score, label, detail: [{ headline, label, conf, score }, ...], isStoredData: false }`.
+
+`isStoredData` is always `false` here: this is the **live** path. The stored
+path (the news module's `get_symbol_bundle`) answers with `true`, so the
+frontend can tell the user whether a number came from the archive or from a
+scrape that just happened.
 
 ### Section D — technical sentiment (lines 227–399)
 
@@ -157,106 +163,141 @@ else: label = "NEUTRAL"
 return {"score": round(norm, 4), "label": label, "signals": signals, "raw_score": round(score, 2)}
 ```
 
-## 2. `backend/app/modules/sentiment/router.py` (63 lines)
+### Section E — the insight entry point
 
-Two endpoints under `/api/v1/sentiment/`, both protected.
+`get_insight(symbol, interval, period)` is the function the router calls. It
+lives here rather than in the router so it can be tested without HTTP.
+
+```mermaid
+flowchart TD
+    Start[get_insight] --> S[get_symbol_bundle from the news module]
+    S -->|bundle| Stored[Stored: score + counts + periods + stories]
+    S -->|None or error| Live[Live: get_headlines + get_sentiment_score]
+    Stored --> Tech[get_technical_sentiment]
+    Live --> Tech
+    Tech --> Out[Payload with isStoredData]
+```
+
+The bundle lookup is wrapped in `try/except`: a broken news database must not
+take the page down, it falls back to the live path instead. The technical layer
+is wrapped the same way — a missing quote degrades to a neutral technical score
+rather than failing the whole request.
+
+## 2. `backend/app/modules/sentiment/router.py`
+
+Endpoints under `/api/v1/sentiment/`, all protected.
 
 | Method | Path | Query | Response |
 |---|---|---|---|
-| `GET` | `/news` | `symbol`, `max_items` (1–20, default 8) | `NewsResponse` |
-| `GET` | `/score` | `symbol`, `interval`, `period` | `SentimentScoreResponse` |
+| `GET` | `/insight` | `symbol`, `interval`, `period` | `SentimentInsightResponse` |
+| `GET` | `/news` | `symbol` | `DeprecatedResponse` |
+| `GET` | `/score` | `symbol` | `DeprecatedResponse` |
 
-`/score` does the full job:
+`/insight` does the full job:
 
-1. Fetch headlines (cached).
-2. Run `get_sentiment_score` (sync).
-3. Fetch candles from market_data.
-4. Build DataFrame + add indicators.
-5. Run `compute_technical_sentiment`.
-6. Wrap and return both.
+1. Ask the news module for the stored bundle (`get_symbol_bundle`).
+2. On a hit, take the score, counts, period cards, strongest stories and recent
+   articles from the database — no scraping, no model.
+3. On a miss, run the legacy live path (`get_headlines` + `get_sentiment_score`)
+   once and mark the response `isStoredData: false`.
+4. Fetch candles from market_data, build the DataFrame + indicators, and run
+   `compute_technical_sentiment`.
+5. Wrap and return everything.
 
-The function bodies use lazy imports inside the handler:
+The deprecated routes keep the old controllers **commented out** in the same
+file, so the previous behaviour stays readable. They answer with a notice
+(`deprecated: true`, a message and the replacement path) and the standard
+`Deprecation: true` header.
 
-```python
-from app.modules.analytics import service as analytics
-from app.modules.market_data import service as market_data
-```
-
-This keeps the module imports clean (no circular dependency risk if analytics
-or market_data ever grows a sentiment dependency).
-
-## 3. `backend/app/modules/sentiment/schemas.py` (41 lines)
+## 3. `backend/app/modules/sentiment/schemas.py`
 
 | Schema | Shape |
 |---|---|
-| `NewsResponse` | `{ symbol, count, headlines: [str] }` |
 | `HeadlineSentiment` | `{ headline, label, conf, score }` |
 | `NewsSentiment` | `{ score, label, detail: [HeadlineSentiment] }` |
 | `TechnicalSignal` | `{ name, tone, message, weight }` |
 | `TechnicalSentiment` | `{ score, label, raw_score, signals: [TechnicalSignal] }` |
-| `SentimentScoreResponse` | `{ symbol, finbert_available, news, technical }` |
+| `SentimentScoreResponse` | `{ symbol, finbert_available, news, technical }` (deprecated) |
+| `InsightCounts` | `{ positive, neutral, negative }` |
+| `InsightWindow` | `{ start, end }` |
+| `InsightNews` | `{ score, label, article_count, counts, avg_confidence, window, detail }` |
+| `StoredArticle` | `{ id, title, source, published_at, url, score, label }` |
+| `SentimentPeriodCard` | `{ period, title, days, available, score, label, counts, sentiment_change, price_* }` |
+| `SentimentInsightResponse` | `{ symbol, isStoredData, source, news, technical, periods, top_articles, top_positive, top_negative, model_version, updated_at, generated_at }` |
+| `DeprecatedResponse` | `{ deprecated, message, replacement, symbol }` |
 
-`finbert_available` is set from the module-level `FINBERT_OK` constant at
-response time.
+`isStoredData` is the field the frontend branches on: `true` renders the
+archive view (period cards, biggest stories, stored headlines), `false` renders
+the live view.
 
 ## 4. Frontend wiring
 
 | File | Purpose |
 |---|---|
-| `frontend/lib/api/sentiment.ts` | `news(symbol, maxItems)`, `score(symbol, interval, period)` |
-| `frontend/lib/hooks/use-sentiment.ts` | `useNews`, `useScore` |
-| `frontend/app/(app)/stocks/[symbol]/components/NewsPanel.tsx` | Renders the news card with tone badges |
-| `frontend/app/(app)/stocks/[symbol]/components/TechnicalSentimentCard.tsx` | Renders the ten rules |
+| `frontend/lib/api/sentiment.ts` | `getSentimentInsight(symbol, interval, period)` |
+| `frontend/lib/hooks/use-sentiment.ts` | `useSentimentInsight` |
+| `frontend/app/(app)/app/stocks/[symbol]/components/news-card.tsx` | Renders the news card: mood meters, period cards, biggest stories, headlines |
+| `frontend/lib/utils/format.ts` | `formatDate` for the story dates |
 
-The frontend reads `finbert_available` to decide whether to show "AI-scored"
-or "keyword-scored" labels.
+The card branches on `data.isStoredData`:
+- `true` → "From our archive: N scored articles", the 1M/3M/1Y/3Y cards, the
+  biggest stories, and the stored headlines with their source and date.
+- `false` → "Live headlines — this stock is not in our archive yet", the live
+  headlines, and a note that the numbers were fetched just now.
 
 ## 5. End-to-end request trace
 
-You open TCS. The score panel mounts:
+You open TCS. The news card mounts:
 
 ```mermaid
 sequenceDiagram
-    participant FE as ScorePanel
+    participant FE as NewsCard
     participant API as apiFetch
     participant BE as FastAPI
+    participant Store as Stored tables
     participant Cache as Redis
     participant RSS as Yahoo/Google RSS
     participant FB as FinBERT
 
-    FE->>API: score(TCS.NS, 1d, 2y)
-    API->>BE: GET /api/v1/sentiment/score?...
-    BE->>Cache: GET sentiment:news:TCS.NS:8
-    alt cache hit
-        Cache-->>BE: headlines
-    else cache miss
-        Cache-->>BE: null
-        BE->>RSS: Yahoo RSS request
-        RSS-->>BE: XML feed
-        BE->>BE: _extract_titles
-        BE->>Cache: SET ... EX=600
-    end
-    BE->>BE: get_sentiment_score (sync)
-    alt FinBERT loaded
-        BE->>FB: pipe(h) per headline
-        FB-->>BE: label + confidence
-    else keyword only
-        BE->>BE: keyword_score per headline
+    FE->>API: getSentimentInsight(TCS.NS, 1d, 2y)
+    API->>BE: GET /api/v1/sentiment/insight?...
+    BE->>Store: get_symbol_bundle(TCS.NS)
+    alt stored coverage
+        Store-->>BE: summary + period cards + articles
+    else no coverage
+        Store-->>BE: null
+        BE->>Cache: GET sentiment:news:TCS.NS:8
+        alt cache hit
+            Cache-->>BE: headlines
+        else cache miss
+            Cache-->>BE: null
+            BE->>RSS: Yahoo RSS request
+            RSS-->>BE: XML feed
+            BE->>Cache: SET ... EX=600
+        end
+        BE->>BE: get_sentiment_score (sync)
+        BE->>BE: FinBERT per headline, or keyword only
     end
     par parallel fetch
         BE->>Cache: GET md:history:TCS.NS:1d:2y
         Cache-->>BE: candles (or null + fetch)
     end
     BE->>BE: candles_to_df + add_indicators + compute_technical_sentiment
-    BE-->>API: SentimentScoreResponse
+    BE-->>API: SentimentInsightResponse
     API-->>FE: JSON
 ```
 
-The whole call is in the 200–800ms range when cached, longer on first hit (Yahoo
-RSS + maybe FinBERT model download).
+The stored path is a plain SELECT and returns in well under 100ms. The live
+path is the 200–800ms range when cached, longer on first hit (Yahoo RSS + maybe
+FinBERT model download).
 
 ## 6. Common gotchas
 
+- **`isStoredData` is `false` for a stock we do track.** The stock has no row
+  in `stock_news_sentiment` yet. Scrape it, score it and re-aggregate
+  (`python -m scripts.score_sentiment`) and it will switch to the stored path.
+- **A period card is empty.** A window with no articles comes back with
+  `available: false` and a null score rather than a measured-looking zero.
 - **`finbert_available: false` in production.** `transformers` not installed in
   the Docker image. Either install it (`pip install transformers torch`) or
   accept the keyword fallback.

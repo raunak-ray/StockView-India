@@ -41,6 +41,18 @@ export function formatCompact(value: number | null | undefined): string {
   return String(Math.round(value));
 }
 
+/** ISO timestamp -> "12 Oct 2026", or "—" when there is no date. */
+export function formatDate(value: string | null | undefined): string {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return date.toLocaleDateString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+}
+
 export type DeltaTone = "up" | "down" | "flat";
 
 export function deltaTone(changePct: number | null | undefined): DeltaTone {

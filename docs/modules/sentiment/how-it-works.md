@@ -8,19 +8,25 @@ of the file is mechanical.
 
 ```mermaid
 flowchart LR
-    Client[Frontend] -->|/sentiment/news| News[get_headlines]
-    Client -->|/sentiment/score| Score[score endpoint]
-    News --> Y[Yahoo RSS] --> G[Google RSS] --> F[yfinance news]
+    Client[Frontend] -->|/sentiment/insight| Insight[insight endpoint]
+    Insight --> Stored{Stored sentiment?}
+    Stored -->|yes| Arch[(news archive + period tables)]
+    Stored -->|no| Live[get_headlines + get_sentiment_score]
+    Live --> Y[Yahoo RSS] --> G[Google RSS] --> F[yfinance news]
     F --> H[List of 1-8 headlines cached 600s]
-    Score --> NH[get_headlines + get_sentiment_score]
-    NH --> H
-    Score --> TC[analytics.add_indicators]
+    Insight --> TC[analytics.add_indicators]
     TC --> TS[compute_technical_sentiment 10 rules]
-    NH & TS --> Resp[SentimentScoreResponse]
+    Arch & H & TS --> Resp[SentimentInsightResponse]
 ```
 
-The `/sentiment/news` endpoint only fetches headlines. `/sentiment/score` adds
-the scoring and the technical layer.
+`/sentiment/insight` is the endpoint the frontend uses. It reads the stored
+sentiment first — our archive of scored headlines, with the 1M/3M/1Y/3Y
+breakdown — and only falls back to a live scrape for a stock we have never
+scraped. The response says which one happened through `isStoredData`.
+
+`/sentiment/news` and `/sentiment/score` are deprecated: their controllers are
+commented out in the router and the routes answer with a short notice pointing
+at `/sentiment/insight`.
 
 ## News headline fetching
 
@@ -234,14 +240,26 @@ technical sentiment scores are smaller — most rules fire with weight ±0.4 to
 | Function | Returns | Caching |
 |---|---|---|
 | `get_headlines(symbol, max_items=8)` | `list[str]` | Redis 600s |
-| `get_sentiment_score(headlines)` | `{ score, label, detail }` | None |
+| `get_sentiment_score(headlines)` | `{ score, label, detail, isStoredData }` | None |
 | `compute_technical_sentiment(df)` | `{ score, label, signals, raw_score }` | None (input candles are cached upstream) |
+| `get_insight(symbol, interval, period)` | the full insight payload | None |
+| `news.sentiment.service.get_symbol_bundle(symbol)` | stored summary + period cards + articles, or `None` | None |
 
-`get_sentiment_score` is sync (CPU-bound). The `/sentiment/score` router calls
-it directly without `to_thread` — it is fast enough (under 100ms for 10
+`get_sentiment_score` is sync (CPU-bound). It is called from the async
+`get_insight` without `to_thread` — it is fast enough (under 100ms for 10
 headlines).
 
-`compute_technical_sentiment` is also sync. The router calls it from the async
+`get_insight` is the request path for the stock page:
+
+1. Ask the news module for the stored bundle. A hit means the score, the four
+   period cards, the strongest stories and the recent articles all come from
+   the database — no scraping, no model.
+2. On a miss, run the legacy live path once and mark the response
+   `isStoredData: false`.
+3. Add the technical layer either way. A price failure degrades to a neutral
+   technical score rather than failing the request.
+
+`compute_technical_sentiment` is also sync. It is called from the async
 handler, which means the event loop blocks for the duration. For a 500-candle
 frame this is fine; if you ever profile a slowdown here, wrap in `to_thread`.
 
@@ -254,16 +272,17 @@ frame this is fine; if you ever profile a slowdown here, wrap in `to_thread`.
 | News score always 0 | All headlines keyword-neutral and FinBERT neutral |
 | News score wildly negative | One headline with strong bearish FinBERT + multiple bear keywords |
 | Technical score stuck at 0 | All ten rules fired neutral |
-| `/sentiment/score` slow | FinBERT model download on first call (~30s for 440 MB). Subsequent calls are sub-second. |
+| `isStoredData: false` for a stock we track | That stock has no row in the stored tables yet — scrape and score it, then re-aggregate |
+| `/sentiment/insight` slow | FinBERT model download on first call (~30s for 440 MB). Subsequent calls are sub-second. |
 | `BULL_WORDS` / `BEAR_WORDS` feel wrong | Domain-specific vocabulary that may not match your style. Edit the lists. |
 
-## Caching note for `/sentiment/score`
+## Caching note for `/sentiment/insight`
 
-The endpoint does **not** cache its own result. It calls `get_headlines` (which
-caches for 600s) and re-runs the technical sentiment every time. The technical
-math is fast; the cache is the headlines.
+The endpoint does **not** cache its own result. The stored path is already a
+plain SELECT, and the live path calls `get_headlines` (which caches for 600s)
+and re-runs the technical sentiment every time.
 
-If you want to cache the full score response too, add a `cache_get` /
-`cache_set` wrapper in the router. Recommended TTL: 60–120s.
+If you want to cache the full response too, add a `cache_get` / `cache_set`
+wrapper in the router. Recommended TTL: 60–120s.
 
 Related: [implementation](implementation.md) for the file map and helper details.

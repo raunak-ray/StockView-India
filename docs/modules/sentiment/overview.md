@@ -11,12 +11,35 @@ Both feed into the 3-layer signal fusion as the "news" layer (15% weight).
 
 ## What you can do with it
 
-- **Fetch news headlines** for a symbol with `GET /sentiment/news`.
-- **Fetch the full sentiment score** with `GET /sentiment/score` — returns both
-  news and technical mood.
-- **Check whether FinBERT is available** — the response includes
-  `finbert_available: bool`. When `false`, the module falls back to pure keyword
+- **Get everything at once** with `GET /sentiment/insight` — the endpoint the
+  frontend uses. It serves the **stored** sentiment when the stock has any (our
+  archive of scored headlines, with the 1M/3M/1Y/3Y breakdown, the strongest
+  stories and the recent articles) and falls back to a **live** scrape for a
+  stock we have never scraped.
+- **Tell the two apart** — the response carries `isStoredData: bool`. `true`
+  means the numbers came from the archive, `false` means they were fetched and
+  scored just now.
+- **Check whether FinBERT is available** — the live path reports
+  `finbert_available: bool`. When `false`, it falls back to pure keyword
   scoring.
+
+`GET /sentiment/news` and `GET /sentiment/score` are **deprecated**: their
+controllers are commented out in the router and the routes answer with a short
+notice pointing at `/sentiment/insight`.
+
+## Where the stored numbers come from
+
+The news module keeps a separate database of scraped articles and the FinBERT
+score of each one. From that it builds two summary tables in the main
+database:
+
+| Table | What it holds |
+|---|---|
+| `stock_news_sentiment` | One row per stock: overall score, positive/neutral/negative counts, and the five strongest positive and negative stories. |
+| `news_sentiment_period` | One row per stock per window (1M/3M/1Y/3Y): score, counts, how much the tone moved, and the price change over the same days. |
+
+A stock with no row in those tables has no stored sentiment, and the endpoint
+says so rather than reporting a neutral score it never measured.
 
 ## How news sentiment works
 
@@ -99,42 +122,66 @@ mood.
 
 ## A real example
 
-You open TCS. The `/sentiment/score` endpoint returns:
+You open TCS. The `/sentiment/insight` endpoint returns the stored archive:
 
 ```json
 {
   "symbol": "TCS.NS",
-  "finbert_available": true,
+  "isStoredData": true,
+  "source": "stored",
   "news": {
-    "score": 0.42,
+    "score": 0.1124,
     "label": "BULLISH",
+    "article_count": 891,
+    "counts": {"positive": 303, "neutral": 372, "negative": 216},
+    "avg_confidence": 0.71,
+    "window": {"start": "2024-01-10T00:00:00+00:00", "end": "2026-10-05T00:00:00+00:00"},
     "detail": [
-      {"headline": "TCS bags ₹15,000 cr deal", "label": "positive", "conf": 0.89, "score": 0.62},
-      {"headline": "TCS Q3 profit up 12%", "label": "positive", "conf": 0.91, "score": 0.64},
+      {"headline": "TCS Q2 results: Net profit up 1.4%", "label": "positive", "conf": 0.97, "score": 0.97},
       ...
     ]
   },
   "technical": {
-    "score": 0.34,
-    "label": "BULLISH",
-    "raw_score": 2.4,
+    "score": 0.07,
+    "label": "NEUTRAL",
+    "raw_score": 0.5,
     "signals": [
       {"name": "MACD", "tone": "BULLISH", "message": "MACD above signal", "weight": 0.4},
       {"name": "5D Trend", "tone": "BULLISH", "message": "5-day return +6.2%", "weight": 0.5},
       ...
     ]
-  }
+  },
+  "periods": {
+    "1m": {"period": "1m", "title": "1M", "available": true, "score": 0.0345, "label": "NEUTRAL", "article_count": 45, "sentiment_change": -0.0032, "price_change_pct": -8.36},
+    "3m": {"...": "..."},
+    "1y": {"...": "..."},
+    "3y": {"...": "..."}
+  },
+  "top_articles": [{"id": 10618, "title": "TCS Q2 results…", "source": "Upstox", "score": 0.9681, "label": "BULLISH"}],
+  "top_positive": [{"...": "..."}],
+  "top_negative": [{"...": "..."}],
+  "model_version": "prosusai-finbert",
+  "updated_at": "2026-10-07T16:10:00+00:00"
 }
 ```
 
-Both layers bullish → news +0.42, technical +0.34. The signals fusion picks
-this up as the news layer (15% weight).
+For a stock with no stored coverage the same endpoint returns the live scrape
+with `"isStoredData": false`, no period cards and no stored stories.
+
+The signals fusion picks the news layer up from the same stored tables (15%
+weight).
 
 ## What the frontend does with it
 
-- **News panel**: shows the headlines with green/red/grey tone badges, plus the
-  aggregate score as a horizontal bar.
-- **Technical panel**: shows the ten rule signals as a list with tone badges.
+- **News panel**: shows the mood meter, and where the number came from — the
+  archive ("891 scored articles, 10 Jan 2024 – 05 Oct 2026") or a live scrape.
+- **News over time**: the 1M / 3M / 1Y / 3Y cards, each with the story count,
+  the tone, how much the news moved and how the price moved over the same
+  days.
+- **Biggest stories**: the five strongest positive and negative stories, with
+  their source and date.
+- **Headlines panel**: the latest stored articles with tone badges (live
+  headlines when the stock is not archived yet).
 - **Fusion panel**: the news layer is shown as a 15%-weighted segment of the
   BlendBar gauge.
 
@@ -152,8 +199,10 @@ this up as the news layer (15% weight).
 - [Stock terminal](../../pages/stock-terminal/overview.md) — the news card. Each headline
   is scored and the aggregate mood is shown as a coloured badge.
 - [Dashboard](../../pages/dashboard/overview.md) — the recent-news ticker.
-- Module: [Signals](../signals/overview.md) — fusion calls `get_sentiment_score` for the
-  15% news weight in the verdict.
+- Module: [Signals](../signals/overview.md) — fusion reads the stored news
+  sentiment for the 15% news weight in the verdict.
+- Module: [News](../news/overview.md) — the scraper and the stored archive this
+  module reads.
 
 ## Related pages in this folder
 

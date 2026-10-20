@@ -20,7 +20,7 @@ flowchart TD
     Chart --> PC[PriceChart - candlestick / line]
     Chart --> IHSM[indicators, signal, smc, sr, history]
     Verdict --> FH[useFusion]
-    News --> SS[useSentimentScore]
+    News --> SS[useSentimentInsight]
     AI --> MPC[useMlPredict + useLstmForecast + useMlCapabilities]
 ```
 
@@ -344,41 +344,49 @@ entry would mean nothing. See the
 
 ## Section 6 — News & mood
 
-`news-card.tsx` (224 lines). A 2-column layout.
+`news-card.tsx`. A 2-column layout.
 
 ### Data
 
 ```typescript
-const { data, isLoading, isError } = useSentimentScore(symbol, timeframe.interval as Interval, timeframe.period as Period);
+const { data, isLoading, isError } = useSentimentInsight(symbol, timeframe.interval as Interval, timeframe.period as Period);
 ```
 
-The `useSentimentScore` hook hits `/api/v1/sentiment/score` and returns:
+The `useSentimentInsight` hook hits `/api/v1/sentiment/insight` and returns:
+- `data.isStoredData` — `true` when the numbers come from the stored archive,
+  `false` when they were scraped live just now.
 - `data.news.score` — the news mood (-1 to +1).
-- `data.news.label` — "BULLISH" / "BEARISH" / "NEUTRAL" / "POSITIVE" / "NEGATIVE".
+- `data.news.label` — "BULLISH" / "BEARISH" / "NEUTRAL".
+- `data.news.article_count` — how many articles the score rests on.
 - `data.news.detail` — the headlines with per-headline scores.
+- `data.periods` — the 1M / 3M / 1Y / 3Y cards (score, story count, how much
+  the news moved, how the price moved).
+- `data.top_positive` / `data.top_negative` — the strongest stories.
+- `data.top_articles` — the latest stored articles.
 - `data.technical.score` / `.label` — the chart mood.
 - `data.technical.signals` — the top active rules (filtered to non-NEUTRAL).
 
 ### Left column: two mood cards
 
 1. **News mood**: the headline tone (BULLISH/BEARISH/NEUTRAL) with the
-   score and a meter.
+   score, a meter, and where the number came from — "From our archive: 891
+   scored articles" or "Live headlines — this stock is not in our archive yet".
 2. **Chart mood**: the technical tone (BULLISH/BEARISH/NEUTRAL) with the
    score, a meter, and the top 3 active rules.
 
 The meter is a horizontal bar with a gradient (down → muted → up) and a
 position marker. The score maps to 0–100% along the bar.
 
-### Right column: headlines
+### Right column: three stacked cards
 
-A list of headlines. Each headline has:
-- A coloured badge with the score's sign and magnitude (e.g. "+42" or
-  "−18").
-- The headline text.
-
-The headlines come from RSS feeds (MoneyControl, Economic Times,
-Business Standard). Each is scored by FinBERT if available, otherwise by
-keyword analysis.
+1. **News over time** (stored only): the 1M / 3M / 1Y / 3Y cards, each with
+   the story count, the tone, the change in tone and the price change.
+2. **Biggest stories** (stored only): the strongest positive and negative
+   stories, with their source and date.
+3. **Latest headlines**: the stored articles when the stock is archived, the
+   live headlines when it is not. Each has a coloured badge with the score's
+   sign and magnitude (e.g. "+42" or "−18"), the headline, and the source and
+   date.
 
 ## Section 7 — AI prediction
 

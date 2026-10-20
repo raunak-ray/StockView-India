@@ -18,7 +18,7 @@ flowchart TD
     Chart --> Hooks[lib/hooks - useHistory, useIndicators, useSupportResistance, useSignal, useSmc]
     Verdict --> UF[lib/hooks/use-analytics - useFusion]
     Verdict --> BAPI[lib/api/blockchain - autoSavePrediction]
-    News --> US[lib/hooks/use-sentiment - useSentimentScore]
+    News --> US[lib/hooks/use-sentiment - useSentimentInsight]
     AI --> UML[lib/hooks/use-ml - useMlPredict, useLstmForecast, useMlCapabilities]
     Star --> UW[lib/hooks/use-watchlist]
 ```
@@ -462,7 +462,7 @@ button is disabled while a mutation is pending.
 | `useSignal` | `GET /signals/signal?symbol=…&…` | Refetch on timeframe change |
 | `useSmc` | `GET /smc/compute?symbol=…&…` | Refetch on timeframe change |
 | `useFusion` | `GET /signals/fusion?symbol=…&…` | Refetch on timeframe change |
-| `useSentimentScore` | `GET /sentiment/score?symbol=…&…` | Refetch on timeframe change |
+| `useSentimentInsight` | `GET /sentiment/insight?symbol=…&…` | Refetch on timeframe change |
 | `useMlCapabilities` | `GET /ml/capabilities` | Once, cache |
 | `useMlPredict` | `GET /ml/predict?symbol=…` | Once per symbol (first call trains) |
 | `useLstmForecast` | `GET /ml/lstm-forecast?symbol=…&…` | Once per symbol+timeframe |
@@ -525,9 +525,9 @@ sequenceDiagram
         Q->>BE: GET /signals/fusion?symbol=…&…
         BE-->>Q: { final_label, layers, ... }
     and
-        Page->>Q: useSentimentScore(symbol, "1d", "2y")
-        Q->>BE: GET /sentiment/score?symbol=…&…
-        BE-->>Q: { news, technical }
+        Page->>Q: useSentimentInsight(symbol, "1d", "2y")
+        Q->>BE: GET /sentiment/insight?symbol=…&…
+        BE-->>Q: { isStoredData, news, technical, periods, top_articles }
     and
         Page->>Q: useMlPredict(symbol)
         Q->>BE: GET /ml/predict?symbol=RELIANCE.NS
@@ -577,7 +577,7 @@ The hooks that refetch:
 - `useSignal` → recomputed.
 - `useSmc` → recomputed.
 - `useFusion` → recomputed.
-- `useSentimentScore` → recomputed.
+- `useSentimentInsight` → recomputed.
 - `useLstmForecast` → refetched with the new interval/period.
 
 The hooks that **don't** refetch:
