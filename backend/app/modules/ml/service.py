@@ -12,7 +12,6 @@ from app.modules.analytics import service as analytics
 from app.modules.market_data import service as market_data
 from app.modules.ml import capabilities as caps
 from app.modules.ml import ensemble, price_lstm
-from app.modules.sentiment.service import get_headlines
 
 logger = logging.getLogger(__name__)
 
@@ -41,10 +40,20 @@ async def predict(symbol: str, use_lstm: bool = False) -> dict[str, Any]:
 
     info = await market_data.get_info(symbol)
     sector = str(info.get("sector", "")) if isinstance(info, dict) else ""
-    headlines = await get_headlines(symbol, max_items=8)
+
+    # Sentiment now comes from the pre-computed store instead of 8 headlines
+    # scraped and re-scored on every prediction. Same stored number for
+    # everyone, and no FinBERT call on the request path.
+    sentiment: dict | None = None
+    try:
+        from app.modules.news.sentiment.service import get_symbol_sentiment
+
+        sentiment = await get_symbol_sentiment(symbol)
+    except Exception:  # noqa: BLE001 — sentiment is optional for ML
+        sentiment = None
 
     result = await anyio.to_thread.run_sync(
-        ensemble.run_ml, df, sector, headlines, use_lstm, True
+        ensemble.run_ml, df, sector, [], use_lstm, False, sentiment
     )
     if result is None:
         from fastapi import HTTPException, status

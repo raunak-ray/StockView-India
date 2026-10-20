@@ -1,9 +1,16 @@
-"""News scraper core — collect headlines day-by-day and store them.
+"""News scraper core — collect articles for one stock and store them.
 
-Two design decisions here are load-bearing, and both come from measured
+Four design decisions here are load-bearing, and all of them come from measured
 behaviour of the upstream source rather than assumption.
 
-**1. One-day windows, not one wide window.**
+**1. One stock at a time.**
+Scraping is driven one symbol per invocation (`scrape(symbol, days)`). A 3-year
+backfill is ~1,095 requests for a single stock, and Google throttles by IP — so
+a run that spans all 86 symbols invites the 503 that ends the whole crawl,
+whereas a single-symbol run either completes or fails cleanly and can simply be
+re-run. Dedup makes re-running free, so a partial run never wastes work.
+
+**2. One-day windows, not one wide window.**
 A single request covering a whole week returns only the most recent handful of
 results — Google silently truncates, with no error. Measured on Reliance over
 one week:
@@ -11,18 +18,22 @@ one week:
     1 x 7-day window   ->   9 articles  ( 25% recall)
     7 x 1-day windows  ->  32 articles  (100% recall)
 
-So `scrape_window` walks backwards one day at a time. The cost is a few more
-requests; the benefit is that nothing is silently lost. Overlapping windows are
-free because inserts are deduplicated on `(content_hash, symbol)`.
+So `_collect_for_rung` walks backwards one day at a time. Overlapping windows
+are free because inserts are deduplicated on `(content_hash, symbol)`.
 
-**2. Every field is kept.**
-The legacy scraper (`app/modules/sentiment/service.py:42-54`) reduced each feed
-item to a bare title string, discarding `pubDate`, `<source>` and `<link>`. That
-is precisely why the existing app cannot date a headline, deduplicate it, or
-show a history. Here the full record is persisted.
+**3. Abort loudly when the source is down.**
+`fetch_articles` raises `SourceUnavailable` instead of returning `[]` when it
+cannot read the feed at all, and the run stops on the first such window. A
+previous version returned `[]` on network failure, which made a Google outage
+look exactly like a quiet news day — a backfill would store three years of
+nothing and report success.
 
-Phase 1 scope is collection and storage only — no FinBERT. Scoring is wired in
-as a later phase, and deliberately not smuggled into this one.
+**4. Bodies are a recent-window luxury.**
+No feed carries article text, so a body costs a second HTTP request per article.
+Backfilling bodies for 3 years x 86 stocks would mean six figures of publisher
+requests and an IP ban. So `body` is filled only for articles published within
+`BODY_FILL_DAYS` — which is to say, by the weekly refresh, and never by the
+backfill. A NULL body is a normal state, not a failure.
 """
 
 from __future__ import annotations
@@ -31,51 +42,106 @@ import asyncio
 import hashlib
 import logging
 import re
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
+from typing import cast
 
 import httpx
+from sqlalchemy import Table, bindparam, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.news_db import NewsSessionLocal
+from app.modules.news.extractor import EXTRACTOR_OK, fetch_body
 from app.modules.news.models import NewsArticle
 from app.modules.news.sources import (
     RawArticle,
+    SourceUnavailable,
     configure_rate_limit,
     fetch_articles,
     normalise_title,
+    preflight,
 )
-from app.modules.news.symbols import Target
+from app.modules.news.symbols import Target, by_symbol
 
 logger = logging.getLogger(__name__)
 
 MAX_DAYS = 3650
 
 # Measured on Google News RSS: 8-32 workers returned zero throttling responses.
-DEFAULT_CONCURRENCY = 12
+DEFAULT_CONCURRENCY = 8
+
+# Global requests/second cap — 20/minute. Google answers a throttled request
+# with a small HTML "Sorry..." page and a 503, and the block survives for 25+
+# hours once triggered (measured: an earlier run at ~25 req/s blocked this IP from
+# 2026-10-03 16:20 IST until switching networks on 2026-10-04). The old default
+# of 1.5 req/s was 90/min, which is faster than the ceiling we want to respect.
+#
+# This is the pacing that matters, not concurrency: `DEFAULT_CONCURRENCY` only
+# hides per-request latency. A 3-year run is ~1,095 requests, so 20/min puts it
+# at roughly 55 minutes per stock — slow on purpose, because a re-block costs
+# days.
+DEFAULT_REQUESTS_PER_SECOND = 20 / 60
+
+# Only articles published inside this window get a body fetched. Set to match
+# the weekly refresh interval: a 7-day run fills bodies, a 1095-day backfill
+# stores headline-only rows. See module docstring §4.
+BODY_FILL_DAYS = 7
+
+# Publisher pages are fetched concurrently with the headline crawl but on their
+# own hosts, so they get their own (slower) budget.
+BODY_CONCURRENCY = 4
+BODY_REQUESTS_PER_SECOND = 1.0
+
+# Days fetched between commits. A 1,000-day backfill at the rate cap above takes
+# ~50 minutes, so committing only at the end would throw away the whole run on a
+# crash. Thirty days is ~1.5 minutes of work at that pace — small enough that
+# resuming costs almost nothing, large enough that the commit overhead (one
+# round trip per chunk) stays negligible.
+CHECKPOINT_EVERY_DAYS = 30
+
+# Called with each finished chunk of relevant articles; the sink is expected to
+# store and commit them.
+ChunkSink = Callable[[list[RawArticle]], Awaitable[None]]
+
+
+class ScrapeAborted(RuntimeError):
+    """The run was stopped because the upstream source failed.
+
+    Raised instead of returning partial statistics, so no caller can mistake a
+    truncated crawl for a completed one.
+    """
 
 
 @dataclass(slots=True)
 class ScrapeStats:
-    """Counters for one scrape run — surfaced by the API and useful in tests."""
+    """Counters for one scrape run — surfaced by the API and used in tests."""
 
+    symbol: str = ""
     articles_seen: int = 0
     articles_new: int = 0
     duplicates: int = 0
     rejected: int = 0
     requests: int = 0
     errors: int = 0
+    bodies_stored: int = 0
+    bodies_failed: int = 0
+    aborted: bool = False
     per_symbol: dict[str, int] = field(default_factory=dict)
 
     def as_dict(self) -> dict[str, object]:
         return {
+            "symbol": self.symbol,
             "articles_seen": self.articles_seen,
             "articles_new": self.articles_new,
             "duplicates": self.duplicates,
             "rejected": self.rejected,
             "requests": self.requests,
             "errors": self.errors,
+            "bodies_stored": self.bodies_stored,
+            "bodies_failed": self.bodies_failed,
+            "aborted": self.aborted,
             "symbols_processed": len(self.per_symbol),
             "per_symbol": self.per_symbol,
         }
@@ -91,6 +157,75 @@ def content_hash(title: str) -> str:
     return hashlib.sha256(normalised.encode("utf-8")).hexdigest()
 
 
+# ── Junk filters ─────────────────────────────────────────────────────────────
+# Both of these were added after a live 3-day run stored 30 articles for
+# RELIANCE.NS of which only ~4 were actually news. Google News matched a quoted
+# company-name query against auto-generated broker quote pages, so the corpus was
+# 53% templated SEO spam. Neither filter can drop a genuine story: they only
+# match shapes that no editorial headline ever takes.
+
+# Tokens that carry no identifying information, so they cannot be used alone to
+# decide an article is about a company. "Reliance Industries" -> "Reliance" is
+# distinctive; "State Bank of India" -> "Bank", "India" and "State" are not.
+_NAME_STOPWORDS = frozenset(
+    {
+        "and", "the", "of", "co", "company", "corp", "corporation", "general",
+        "group", "holdings", "india", "indus", "industries", "industry", "ltd",
+        "limited", "national", "power", "private", "public", "financial",
+        "finance", "bank", "state", "services", "limited.",
+    }
+)
+
+# Templated quote and roundup pages. Each pattern requires the tell-tale pairing,
+# because on its own "share price" appears in plenty of real headlines
+# ("Reliance share price slips 2% after Q2 results").
+#
+# A tuple, not a generator: `any()` over a generator consumes it, which would
+# leave every call after the first matching nothing at all.
+_BOILERPLATE_PATTERNS = tuple(
+    re.compile(p, re.IGNORECASE)
+    for p in (
+        r"\boption chain\b",
+        r"\bshare price\b.*\b(live nse|live bse|upstox|moneycontrol|chart)\b",
+        r"\b(live nse|live bse)\b.*\bstock price\b",
+        r"\bshare price today\b",
+        r"\bstock price\s*&\s*chart\b",
+        r"\bindex (price )?today\b",
+        r"\blive level\b",
+        r"\btop \d+ .*(stocks|companies|equities|funds)\b",
+        r"\blist of .*(stocks|companies|equities)\b",
+        r"\bbest .*(stocks|companies|equities)\b",
+        r"\bstocks to buy\b",
+    )
+)
+
+
+def is_boilerplate(article: RawArticle) -> bool:
+    """True for templated quote/roundup pages that are not news.
+
+    These are worthless as model input and poison the sentiment corpus: a page
+    titled "Oberoi Realty Share Price - Upstox" is emitted once per listed stock
+    and matched almost any quoted-company query.
+    """
+    haystack = f"{article.title} {article.source or ''}"
+    return any(pattern.search(haystack) for pattern in _BOILERPLATE_PATTERNS)
+
+
+def _distinctive_tokens(target: Target) -> tuple[str, ...]:
+    """Identifying words from the company name, stopwords removed.
+
+    Lets "Reliance's Andhra Pradesh CBG push" match "Reliance Industries"
+    without letting "State Bank of India" match on the word "State".
+    """
+    words = re.split(r"[^A-Za-z]+", f"{target.display_name} {target.nse_name}")
+    tokens: list[str] = []
+    for word in words:
+        token = word.lower()
+        if len(token) >= 5 and token not in _NAME_STOPWORDS and token not in tokens:
+            tokens.append(token)
+    return tuple(tokens)
+
+
 def is_relevant(article: RawArticle, target: Target) -> bool:
     """Reject articles that mention the symbol without being about it.
 
@@ -98,7 +233,7 @@ def is_relevant(article: RawArticle, target: Target) -> bool:
     returns American College of Cardiology and Saudi cricket fixtures. Rung 1
     and 2 of the ladder use the company name so they rarely need this; rung 3
     (bare symbol) does. We accept the article only if the company name, the
-    official NSE name, or a distinctive symbol token appears in the headline.
+    official NSE name, or a distinctive token from either appears in the headline.
     """
     haystack = f"{article.title} {article.source or ''}".lower()
 
@@ -109,6 +244,14 @@ def is_relevant(article: RawArticle, target: Target) -> bool:
     official = target.nse_name.lower()
     if len(official) >= 6 and official in haystack:
         return True
+
+    # Distinctive-token fallback. Catches the possessive and inflected forms a
+    # strict full-name substring test would drop: "Reliance's Andhra Pradesh CBG
+    # push", "Hindustan Unilever Q3". Case-insensitive with word boundaries,
+    # because at this point the token is already specific to one company.
+    for token in _distinctive_tokens(target):
+        if re.search(rf"\b{re.escape(token)}", haystack):
+            return True
 
     # Bare-symbol fallback. Two guards, both necessary:
     #
@@ -143,12 +286,16 @@ async def store_articles(
     session: AsyncSession,
     target: Target,
     articles: list[RawArticle],
-    query_used: str,
     stats: ScrapeStats,
-) -> None:
-    """Bulk-insert articles, skipping ones already stored for this symbol."""
+) -> list[tuple[int, str]]:
+    """Bulk-insert articles, skipping ones already stored for this symbol.
+
+    Returns `(id, url)` for each row that was actually inserted, which is what the
+    body pass needs — duplicates are skipped here, so re-running never re-fetches
+    a body it already has.
+    """
     if not articles:
-        return
+        return []
 
     rows = []
     for article in articles:
@@ -160,30 +307,113 @@ async def store_articles(
             {
                 "symbol": target.symbol,
                 "title": title,
+                "body": None,
                 "source": article.source,
                 "published_at": article.published_at,
                 "url": article.url,
-                "query_used": query_used[:160],
                 "content_hash": content_hash(title),
                 "fetched_at": datetime.now(UTC),
             }
         )
 
     if not rows:
-        return
+        return []
 
     # ON CONFLICT DO NOTHING -> re-running the scraper is free and idempotent.
     statement = (
         pg_insert(NewsArticle)
         .values(rows)
         .on_conflict_do_nothing(constraint="uq_news_article_hash_symbol")
-        .returning(NewsArticle.id)
+        .returning(NewsArticle.id, NewsArticle.url)
     )
     result = await session.execute(statement)
-    inserted = len(result.fetchall())
+    inserted = [(row[0], row[1] or "") for row in result.fetchall()]
 
-    stats.articles_new += inserted
-    stats.duplicates += len(rows) - inserted
+    stats.articles_new += len(inserted)
+    stats.duplicates += len(rows) - len(inserted)
+    return inserted
+
+
+async def fill_bodies(
+    client: httpx.AsyncClient,
+    session: AsyncSession,
+    inserted: list[tuple[int, str]],
+    stats: ScrapeStats,
+) -> None:
+    """Fetch and store article text for freshly inserted, recent articles.
+
+    Only rows whose `published_at` falls inside `BODY_FILL_DAYS` are eligible,
+    which is what keeps the 3-year backfill headline-only while the weekly
+    refresh fills in text. See module docstring §4.
+
+    A failed extraction leaves `body` NULL and bumps `bodies_failed`; it never
+    aborts the run. Publishers block, paywall and 404 constantly, and losing one
+    article body is not a reason to lose a whole stock.
+    """
+    if not inserted:
+        return
+    if not EXTRACTOR_OK:
+        logger.warning("news: bs4/lxml unavailable — storing headline-only rows")
+        return
+
+    # `published_at` is not part of RETURNING, so re-read it for the rows just
+    # written. Restricted to `inserted` ids, so this stays cheap.
+    ids = [article_id for article_id, _url in inserted]
+    stored = await session.execute(
+        select(NewsArticle.id, NewsArticle.url, NewsArticle.published_at).where(
+            NewsArticle.id.in_(ids)
+        )
+    )
+
+    cutoff = datetime.now(UTC) - timedelta(days=BODY_FILL_DAYS)
+    candidates = [
+        (row_id, url)
+        for row_id, url, published_at in stored.all()
+        if url and published_at is not None and published_at >= cutoff
+    ]
+
+    if not candidates:
+        logger.info(
+            "news: no articles inside the %d-day body window — skipped", BODY_FILL_DAYS
+        )
+        return
+
+    logger.info("news: fetching bodies for %d articles", len(candidates))
+    semaphore = asyncio.Semaphore(BODY_CONCURRENCY)
+
+    async def one(article_id: int, url: str) -> tuple[int, str | None]:
+        async with semaphore:
+            return article_id, await fetch_body(client, url)
+
+    results = await asyncio.gather(*(one(row_id, url) for row_id, url in candidates))
+
+    updates = [
+        {"article_id": article_id, "body": body}
+        for article_id, body in results
+        if body is not None
+    ]
+    if updates:
+        # A Core update on the table, not an ORM one. The ORM's "bulk update by
+        # primary key" path demands the dict be keyed by the real PK column name
+        # (`id`) while rejecting `id` as an explicit bindparam name, and it also
+        # refuses to run alongside a WHERE clause without `synchronize_session`.
+        # Going straight to the Table avoids all three constraints and issues a
+        # single executemany instead of one round trip per article.
+        table = cast(Table, NewsArticle.__table__)
+        await session.execute(
+            update(table)
+            .where(table.c.id == bindparam("article_id"))
+            .values({"body": bindparam("body")}),
+            updates,
+        )
+        stats.bodies_stored += len(updates)
+    stats.bodies_failed += len(results) - len(updates)
+
+    logger.info(
+        "news: bodies stored %d, unavailable %d",
+        stats.bodies_stored,
+        stats.bodies_failed,
+    )
 
 
 async def scrape_symbol(
@@ -193,72 +423,133 @@ async def scrape_symbol(
     end: datetime | None = None,
     stats: ScrapeStats | None = None,
     semaphore: asyncio.Semaphore | None = None,
+    abort: asyncio.Event | None = None,
+    on_chunk: ChunkSink | None = None,
+    skip_days: frozenset[date] = frozenset(),
 ) -> list[RawArticle]:
-    """Collect articles for one symbol over the last `days` days.
+    """Collect articles for one symbol, one checkpoint-sized chunk at a time.
 
     Walks backwards one day at a time — see the module docstring for why that
-    matters. Returns the collected articles so they can be stored, or asserted
-    on in tests, without touching the database.
+    matters. Returns everything collected, so tests can assert on it without
+    touching the database.
+
+    **Chunked, not all-at-once.** Days are processed in `CHECKPOINT_EVERY_DAYS`
+    groups and each finished group is handed to `on_chunk`, which stores and
+    commits it. A 3-year run is ~55 minutes at the measured rate, so a single
+    commit at the end means a crash discards the entire run; committing every 30
+    days bounds that loss to ~1.5 minutes of work.
+
+    **The query ladder is now per chunk.** Previously each rung was tried across
+    all 1,095 days before moving to the next, which meant one noisy stock could
+    never fall back for its quiet days. Trying rung 1 for a chunk, then rung 2 for
+    *that same chunk*, keeps recall identical while making progress incremental.
+
+    `skip_days` lets a resumed run bypass day-windows that already have stored
+    articles, so restarting after a crash costs only the days never reached.
+
+    Stops descending the ladder once `abort` is set, so a dead source costs one
+    failed window rather than three.
     """
     stats = stats if stats is not None else ScrapeStats()
     stop_at = end or datetime.now(UTC)
     sem = semaphore or asyncio.Semaphore(1)
+    halt = abort or asyncio.Event()
+    collected: list[RawArticle] = []
 
-    for terms in target.query_terms():
-        day_articles = await _collect_for_rung(client, terms, days, stop_at, stats, sem)
-        if not day_articles:
-            continue
+    for chunk in _day_chunks(days, stop_at, skip_days):
+        if halt.is_set():
+            break
 
-        # A quoted-phrase query is already entity-filtered by Google: asking for
-        # the exact company name returns articles *about that company*, so
-        # re-filtering locally would only discard legitimate coverage. That is
-        # not a theoretical risk — requiring the full "Reliance Industries"
-        # phrase threw away real headlines phrased as "Reliance's Andhra
-        # Pradesh CBG push" and "Nuvama retains target for Reliance stock".
-        #
-        # The bare-symbol rung (no quoted phrase) has no such guarantee, so it
-        # is the only one that needs the local relevance check.
-        if _is_precise(terms):
-            return day_articles
+        for terms in target.query_terms():
+            if halt.is_set():
+                break
 
-        relevant = [a for a in day_articles if is_relevant(a, target)]
-        stats.rejected += len(day_articles) - len(relevant)
-        if relevant:
-            return relevant
+            windows = [(start, stop) for start, stop, _ in chunk]
+            day_articles = await _collect_for_windows(
+                client, terms, windows, stats, sem, halt
+            )
+            if halt.is_set():
+                break
+            if not day_articles:
+                continue
 
-    return []
+            # Every rung is filtered, including the quoted-phrase ones.
+            #
+            # This used to skip filtering whenever the query pinned a quoted
+            # phrase, on the reasoning that Google had already entity-filtered it.
+            # A live run disproved that: `"Reliance Industries" NSE` returned Upstox
+            # quote templates for unrelated companies ("Oberoi Realty Share
+            # Price", "Amber Enterprises Share Price"), because those
+            # auto-generated pages match the phrase and rank well. Of 30 articles
+            # stored for RELIANCE.NS only ~4 were news — 16 were boilerplate. A
+            # quoted phrase constrains the query; it does not constrain results.
+            relevant = [
+                a for a in day_articles if not is_boilerplate(a) and is_relevant(a, target)
+            ]
+            stats.rejected += len(day_articles) - len(relevant)
+            if not relevant:
+                continue
+
+            collected.extend(relevant)
+            if on_chunk is not None:
+                await on_chunk(relevant)
+            break  # this chunk is satisfied; do not widen the ladder for it
+
+    return collected
 
 
-def _is_precise(terms: str) -> bool:
-    """True when the query pins a quoted phrase, so results are self-filtering."""
-    return '"' in terms
-
-
-async def _collect_for_rung(
-    client: httpx.AsyncClient,
-    terms: str,
+def _day_chunks(
     days: int,
     stop_at: datetime,
-    stats: ScrapeStats,
-    semaphore: asyncio.Semaphore,
-) -> list[RawArticle]:
-    """Fetch one query across `days` separate 1-day windows, concurrently.
+    skip_days: frozenset[date] = frozenset(),
+) -> list[list[tuple[datetime, datetime, date]]]:
+    """Split the look-back window into backwards chunks of 1-day windows.
 
-    Day windows are independent, so they are dispatched together and bounded by
-    a shared semaphore rather than awaited one at a time.
+    Each entry is `(start, end, date)`. Chunks nearer `stop_at` come first, so an
+    interrupted run has covered the most recent news before it reaches back into
+    history.
     """
-    windows = []
+    windows: list[tuple[datetime, datetime, date]] = []
     for offset in range(days):
         end = stop_at - timedelta(days=offset)
-        windows.append((end - timedelta(days=1), end))
+        start = end - timedelta(days=1)
+        if start.date() in skip_days:
+            continue
+        windows.append((start, end, start.date()))
+
+    return [
+        windows[i : i + CHECKPOINT_EVERY_DAYS]
+        for i in range(0, len(windows), CHECKPOINT_EVERY_DAYS)
+    ]
+
+
+async def _collect_for_windows(
+    client: httpx.AsyncClient,
+    terms: str,
+    windows: list[tuple[datetime, datetime]],
+    stats: ScrapeStats,
+    semaphore: asyncio.Semaphore,
+    abort: asyncio.Event,
+) -> list[RawArticle]:
+    """Fetch one query across a set of 1-day windows, concurrently.
+
+    Windows are independent, so they are dispatched together and bounded by a
+    shared semaphore rather than awaited one at a time. `abort` is checked before
+    every request so that the first dead window stops the remaining ones from
+    being fired at a source that is already refusing us.
+    """
+    if not windows:
+        return []
 
     stats.requests += len(windows)
 
     async def guarded(start: datetime, end: datetime) -> list[RawArticle]:
         # The semaphore MUST be held around each request. Without it, gather()
-        # would fire all `days` windows at once (1,095 for a 3-year backfill),
-        # queueing tens of thousands of sockets and starving every worker.
+        # would fire every window in the chunk at once, queueing far more sockets
+        # than the pool has connections.
         async with semaphore:
+            if abort.is_set():
+                return []
             return await fetch_articles(client, terms, start, end)
 
     results = await asyncio.gather(
@@ -268,6 +559,13 @@ async def _collect_for_rung(
 
     found: list[RawArticle] = []
     for (start, end), result in zip(windows, results, strict=True):
+        if isinstance(result, SourceUnavailable):
+            # Loud, immediate, and fatal to the run. See module docstring §3.
+            abort.set()
+            stats.errors += 1
+            stats.aborted = True
+            logger.error("news: source failed on window %s..%s: %s", start, end, result)
+            return []
         if isinstance(result, BaseException):
             stats.errors += 1
             logger.warning("news: window %s..%s failed: %s", start, end, result)
@@ -285,84 +583,111 @@ async def _collect_for_rung(
 
 
 async def scrape(
+    symbol: str,
     days: int = 7,
-    symbols: list[str] | None = None,
-    max_symbols: int | None = None,
-    concurrency: int = DEFAULT_CONCURRENCY,
-    requests_per_second: float | None = None,
+    requests_per_second: float = DEFAULT_REQUESTS_PER_SECOND,
 ) -> ScrapeStats:
-    """Scrape news for the target universe and store it in the news database.
+    """Scrape news for **one** stock over the last `days` days and store it.
 
-    `days` is the look-back window per symbol. Day-by-day slicing inside that
-    window is what makes recall complete (see module docstring).
+    `days` is the look-back window, sliced one day at a time because a single
+    wide query silently truncates (see module docstring §2). Use 7 for the
+    weekly refresh and 1095 for the one-time 3-year backfill.
 
-    `concurrency` hides per-request latency; `requests_per_second` is the real
-    safety valve. See `sources.configure_rate_limit` — sustained concurrency
-    without a global rate cap is what provoked HTTP 503 from Google.
+    Article bodies are fetched only for articles published within
+    `BODY_FILL_DAYS`, so a 7-day run fills text and a 1095-day run stores
+    headlines alone.
+
+    Raises `ValueError` for a bad symbol or window, and `ScrapeAborted` if
+    Google News stops answering — never returns partial statistics that could
+    be mistaken for a finished crawl.
+
+    `requests_per_second` is the real safety valve; it is not a parameter the
+    caller needs in normal use, and defaults to the measured-safe value.
     """
-    from app.modules.news.symbols import by_symbol
-    from app.modules.news.symbols import targets as all_targets
-
     if days < 1 or days > MAX_DAYS:
         raise ValueError(f"days must be between 1 and {MAX_DAYS}")
 
-    if requests_per_second is not None:
-        configure_rate_limit(requests_per_second)
+    target = by_symbol(symbol)
+    if target is None:
+        raise ValueError(f"'{symbol}' is not in the news scrape universe")
 
-    selected = _select_targets(symbols, max_symbols, by_symbol, all_targets)
-    stats = ScrapeStats()
-    semaphore = asyncio.Semaphore(max(1, concurrency))
+    configure_rate_limit(requests_per_second)
+
+    stats = ScrapeStats(symbol=target.symbol)
+    abort = asyncio.Event()
+    semaphore = asyncio.Semaphore(DEFAULT_CONCURRENCY)
 
     logger.info(
-        "news: scraping %d symbols over %d days (concurrency=%d)",
-        len(selected),
+        "news: %s over %d days (~%d requests, checkpoint every %d days)",
+        target.symbol,
         days,
-        concurrency,
+        days * len(target.query_terms()),
+        CHECKPOINT_EVERY_DAYS,
     )
 
-    limits = httpx.Limits(
-        max_connections=max(concurrency * 2, 10),
-        max_keepalive_connections=concurrency,
-    )
-    async with httpx.AsyncClient(follow_redirects=True, limits=limits, timeout=25.0) as client:
-        queue: asyncio.Queue[Target] = asyncio.Queue()
-        for target in selected:
-            queue.put_nowait(target)
+    # One session for the whole run, committed once per chunk. Progress is
+    # therefore visible in the database *while* the crawl is still going, and a
+    # crash costs at most CHECKPOINT_EVERY_DAYS of fetching rather than all of
+    # it. Holding one session open is safe because every commit ends its
+    # transaction, so a failure never leaves a half-written chunk behind.
+    async with NewsSessionLocal() as session:
 
-        async def worker() -> None:
-            while True:
-                try:
-                    target = queue.get_nowait()
-                except asyncio.QueueEmpty:
-                    return
+        async def checkpoint(chunk: list[RawArticle]) -> None:
+            """Store and commit one chunk of already-filtered articles."""
+            await store_articles(session, target, chunk, stats)
+            await session.commit()
+            logger.info(
+                "news: %s checkpoint committed — %d new so far (%d seen)",
+                target.symbol,
+                stats.articles_new,
+                stats.articles_seen,
+            )
 
-                try:
-                    articles = await scrape_symbol(
-                        client, target, days, stats=stats, semaphore=semaphore
-                    )
-                    if articles:
-                        async with NewsSessionLocal() as session:
-                            await store_articles(
-                                session, target, articles, target.query_terms()[0], stats
-                            )
-                            await session.commit()
-                        stats.per_symbol[target.symbol] = len(articles)
-                        logger.info(
-                            "news: %-14s %4d articles (stored total %d)",
-                            target.symbol,
-                            len(articles),
-                            stats.articles_new,
-                        )
-                    else:
-                        logger.info("news: %-14s   0 articles", target.symbol)
-                except Exception:
-                    stats.errors += 1
-                    logger.exception("news: %s failed", target.symbol)
-                finally:
-                    queue.task_done()
+        limits = httpx.Limits(
+            max_connections=DEFAULT_CONCURRENCY * 2,
+            max_keepalive_connections=DEFAULT_CONCURRENCY,
+        )
+    async with httpx.AsyncClient(
+            follow_redirects=True, limits=limits, timeout=25.0
+        ) as client:
+            # Ask for one real feed before committing to ~1,000 requests. A
+            # blocked IP should cost two requests, not a whole backfill.
+            try:
+                await preflight(client)
+            except SourceUnavailable as exc:
+                stats.aborted = True
+                stats.errors += 1
+                logger.error("news: preflight failed, not starting: %s", exc)
+                raise ScrapeAborted(f"google news is not responding: {exc}") from exc
 
-        worker_count = max(1, min(concurrency, len(selected)))
-        await asyncio.gather(*(worker() for _ in range(worker_count)))
+            articles = await scrape_symbol(
+                client,
+                target,
+                days,
+                stats=stats,
+                semaphore=semaphore,
+                abort=abort,
+                on_chunk=checkpoint,
+            )
+
+            if stats.aborted:
+                raise ScrapeAborted(
+                    f"google news stopped responding partway through {target.symbol}; "
+                    "everything collected before the failure is already stored. "
+                    "Re-run the same command to resume."
+                )
+
+            if not articles:
+                logger.info("news: %s - 0 articles in %d days", target.symbol, days)
+            else:
+                stats.per_symbol[target.symbol] = stats.articles_new
+                logger.info(
+                    "news: %s stored %d new (%d dupes) of %d seen",
+                    target.symbol,
+                    stats.articles_new,
+                    stats.duplicates,
+                    stats.articles_seen,
+                )
 
     logger.info(
         "news: done - %d stored, %d duplicates, %d rejected, %d errors",
@@ -372,20 +697,3 @@ async def scrape(
         stats.errors,
     )
     return stats
-
-
-def _select_targets(
-    symbols: list[str] | None,
-    max_symbols: int | None,
-    by_symbol,
-    all_targets,
-) -> list[Target]:
-    """Resolve the requested symbol list into targets, preserving universe order."""
-    if symbols:
-        picked = [t for t in (by_symbol(s) for s in symbols) if t is not None]
-        if not picked:
-            raise ValueError("None of the requested symbols are in the scrape universe")
-        return picked[:max_symbols] if max_symbols else picked
-
-    universe = all_targets()
-    return universe[:max_symbols] if max_symbols else universe

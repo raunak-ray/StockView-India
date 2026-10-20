@@ -76,6 +76,7 @@ async def get_news_db() -> AsyncGenerator[AsyncSession]:
 async def init_news_db() -> None:
     """Create every table declared in the news models (idempotent)."""
     from app.modules.news import models as news_models  # noqa: F401
+    from app.modules.news.sentiment import models as sentiment_models  # noqa: F401
 
     async with news_engine.begin() as conn:
         await conn.run_sync(NewsBase.metadata.create_all)

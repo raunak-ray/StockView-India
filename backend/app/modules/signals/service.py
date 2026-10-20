@@ -284,8 +284,11 @@ def compute_fusion(
         ns_score = float(news_result.get("score", 0.0))
         ns_label = _normalise_label(news_result.get("label", "neutral"))
         ns_detail = news_result.get("detail", [])
-        if ns_score != 0.0:
-            news_available = True
+        # Availability means "we have evidence", not "the evidence is non-zero".
+        # The old check was `ns_score != 0.0`, which silently deleted the news
+        # layer whenever the reading was genuinely neutral — so a stock with
+        # 1,600 neutral articles was reported as having no news at all.
+        news_available = True
 
     # ── Re-weight if layers missing ──────────────────────────────────────
     available_weights = []
@@ -408,15 +411,33 @@ async def get_fusion(
     except Exception:  # noqa: BLE001, S110 — ML degradation is expected
         pass
 
-    # 3. News sentiment
+    # 3. News sentiment — read from the pre-computed store (news/sentiment).
+    # The previous implementation scraped 8 live headlines and re-ran FinBERT on
+    # every single fusion call, so the same stock could return a different score
+    # depending on when you asked, and a quiet news day read as NEUTRAL simply
+    # because nothing was found.
     news_result: dict[str, Any] | None = None
     try:
-        from app.modules.sentiment.service import get_headlines, get_sentiment_score
-        headlines = await get_headlines(symbol, max_items=8)
-        if headlines:
-            news_result = await anyio.to_thread.run_sync(
-                get_sentiment_score, headlines
-            )
+        from app.modules.news.sentiment.service import get_symbol_sentiment
+
+        stored = await get_symbol_sentiment(symbol)
+        if stored and stored.get("article_count"):
+            # Shape matches what compute_fusion expects: score, label, detail.
+            detail = [
+                {
+                    "headline": item["title"],
+                    "label": "positive" if item["score"] > 0 else "negative",
+                    "conf": abs(item["score"]),
+                    "score": item["score"],
+                }
+                for item in (stored["top_negative"] + stored["top_positive"])
+            ]
+            news_result = {
+                "score": stored["score"],
+                "label": stored["label"],
+                "detail": detail,
+                "article_count": stored["article_count"],
+            }
     except Exception:  # noqa: BLE001, S110 — news degradation is expected
         pass
 

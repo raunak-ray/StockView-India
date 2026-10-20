@@ -9,7 +9,7 @@ from app.core.news_db import NewsBase
 
 
 class NewsArticle(NewsBase):
-    """A single scraped headline (plan/07 §1 — news_articles).
+    """A single scraped article (news_articles).
 
     Lives in the isolated news database, never in the app database.
 
@@ -20,9 +20,11 @@ class NewsArticle(NewsBase):
     insert is an ON CONFLICT DO NOTHING. Re-running the scraper is therefore
     free and idempotent.
 
-    `query_used` records which rung of the search-query ladder found this
-    article, so a bad query is auditable rather than silently poisoning the
-    corpus (see `app/modules/news/service.py`).
+    `body` holds the article text, extracted from the publisher page. No feed
+    carries it, so it costs a second HTTP request per article and is therefore
+    only populated for the recent window (see `service.BODY_FILL_DAYS`) — the
+    3-year backfill deliberately stores headline-only rows. NULL body is a
+    normal, expected state, not a failure.
     """
 
     __tablename__ = "news_articles"
@@ -42,12 +44,13 @@ class NewsArticle(NewsBase):
     symbol: Mapped[str] = mapped_column(String(32), index=True)
 
     title: Mapped[str] = mapped_column(Text)
+
+    # Article text, scraped from the publisher page. NULL for headline-only rows.
+    body: Mapped[str | None] = mapped_column(Text)
+
     source: Mapped[str | None] = mapped_column(String(128))
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     url: Mapped[str | None] = mapped_column(Text)
-
-    # Which search rung produced this row — makes bad matches traceable.
-    query_used: Mapped[str | None] = mapped_column(String(160))
 
     # sha256 of the normalised title; see class docstring.
     content_hash: Mapped[str] = mapped_column(String(64))

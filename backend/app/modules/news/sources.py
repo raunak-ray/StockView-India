@@ -15,15 +15,18 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import logging
 import random
 import re
 import time
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from email.utils import parsedate_to_datetime
 from xml.etree import ElementTree
 
 import httpx
+
+logger = logging.getLogger(__name__)
 
 _UA = {
     "User-Agent": (
@@ -38,6 +41,45 @@ GOOGLE_NEWS_URL = "https://news.google.com/rss/search?q={query}&hl=en-IN&gl=IN&c
 # keeps the stored title clean and makes the dedupe hash stable across
 # outlets that syndicate the same story.
 _PUBLISHER_SUFFIX = re.compile(r"\s+-\s+[^-]{2,60}$")
+
+# Statuses that mean "we are being rate limited or blocked", not "no results".
+# 503 is what Google actually returns; 429 is the polite form.
+_THROTTLED = frozenset({429, 503})
+
+
+class SourceUnavailable(RuntimeError):
+    """The upstream feed could not be read at all.
+
+    Raised instead of returning an empty list, so that an outage can never be
+    mistaken for a day with no news. `app/modules/news/service.py` aborts the
+    run on this rather than storing a silently empty corpus.
+    """
+
+
+class _Throttled(Exception):
+    """Internal: a throttling response, carrying `Retry-After` if the server sent it."""
+
+    def __init__(self, message: str, retry_after: float = 0.0) -> None:
+        super().__init__(message)
+        self.retry_after = retry_after
+
+
+def _retry_after_seconds(response: httpx.Response) -> float:
+    """Server-requested cooldown, or 0.0 when absent or unparseable."""
+    raw = response.headers.get("Retry-After")
+    if not raw:
+        return 0.0
+    try:
+        return max(0.0, float(raw))
+    except ValueError:
+        return 0.0
+
+
+def _throttle_message(response: httpx.Response) -> str:
+    """Human-readable cause for a throttled response."""
+    detail = f"HTTP {response.status_code}"
+    wait = _retry_after_seconds(response)
+    return f"{detail} (retry after {wait:.0f}s)" if wait > 0 else detail
 
 
 @dataclass(frozen=True, slots=True)
@@ -159,28 +201,67 @@ async def fetch_articles(
     search_terms: str,
     start: datetime,
     end: datetime,
-    attempts: int = 3,
+    attempts: int = 5,
 ) -> list[RawArticle]:
     """Fetch one date window from Google News.
 
-    Returns `[]` on network failure or malformed XML — callers treat an empty
-    result as "nothing found for this window", which is a normal outcome for
-    thinly-covered stocks.
+    Returns `[]` when the feed parsed cleanly but held no items — a normal
+    outcome for a thinly-covered stock on a quiet day.
 
-    Retries with exponential backoff, so an occasional 503 does not cost us a
-    day of coverage that a later re-run would have to rediscover.
+    Raises `SourceUnavailable` when every attempt failed. That distinction is the
+    whole point: the previous version also returned `[]` on network failure, so a
+    Google outage was indistinguishable from "this stock had no news that day",
+    and a 3-year backfill would quietly store three years of nothing while
+    reporting success. An empty result and a broken source must never look alike.
+
+    Retries with exponential backoff and honours `Retry-After`, so a 503 costs a
+    pause rather than a day of coverage.
     """
     url = GOOGLE_NEWS_URL.format(query=build_query(search_terms, start, end))
 
+    last: Exception | None = None
     for attempt in range(attempts):
         async with _pace_request():
             try:
                 response = await client.get(url, headers=_UA, timeout=25.0)
+                if response.status_code in _THROTTLED:
+                    # Google answers a throttled request with a small HTML
+                    # "Sorry..." page and a 503 — not an RSS body — so this must
+                    # be checked before parsing or every retry dies on
+                    # ElementTree.ParseError and reports the wrong cause.
+                    raise _Throttled(
+                        _throttle_message(response),
+                        _retry_after_seconds(response),
+                    )
                 response.raise_for_status()
                 return parse_rss(response.text)
-            except httpx.HTTPError:
+            except (_Throttled, httpx.HTTPError) as exc:
+                last = exc
                 if attempt == attempts - 1:
-                    return []
-                # Jittered backoff so retries don't re-synchronise across workers.
-                await asyncio.sleep((2**attempt) * 1.5 + random.random() * 0.5)
-    return []
+                    break
+                # Jittered backoff so retries don't re-synchronise, plus the
+                # server's own instruction when it sent one.
+                delay = (2**attempt) * 1.5 + random.random() * 0.5
+                if isinstance(exc, _Throttled):
+                    delay = max(delay, exc.retry_after or 0.0)
+                logger.warning(
+                    "news: %s on attempt %d/%d, retrying in %.1fs",
+                    exc,
+                    attempt + 1,
+                    attempts,
+                    delay,
+                )
+                await asyncio.sleep(delay)
+
+    raise SourceUnavailable(f"google news unavailable for '{search_terms}': {last}") from last
+
+
+async def preflight(client: httpx.AsyncClient) -> None:
+    """Confirm the source answers before a long run starts.
+
+    A 3-year backfill is ~1,095 requests. Discovering on request 900 that Google
+    has been blocking this IP for an hour wastes the whole run, so the very first
+    thing a scrape does is ask for one real feed.
+    """
+    await fetch_articles(client, "Nifty 50", datetime.now(UTC) - timedelta(days=2),
+                         datetime.now(UTC), attempts=2)

@@ -16,6 +16,8 @@ dependencies = [
     "arq",
     "apscheduler",
     "httpx",
+    "beautifulsoup4",
+    "lxml",
     "yfinance>=0.2.37",
     "pandas>=2.0",
     "numpy>=1.24",

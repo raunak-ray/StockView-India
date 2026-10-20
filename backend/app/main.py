@@ -21,6 +21,7 @@ from app.modules.instruments.router import router as instruments_router
 from app.modules.market_data.router import router as market_data_router
 from app.modules.ml.router import router as ml_router
 from app.modules.news.router import router as news_router
+from app.modules.news.sentiment.router import router as news_sentiment_router
 from app.modules.nse.router import router as nse_router
 from app.modules.portfolio.router import router as portfolio_router
 from app.modules.sentiment.router import router as sentiment_router
@@ -72,6 +73,7 @@ def create_app() -> FastAPI:
     app.include_router(backtesting_router, prefix=settings.api_v1_prefix)
     app.include_router(blockchain_router, prefix=settings.api_v1_prefix)
     app.include_router(news_router, prefix=settings.api_v1_prefix)
+    app.include_router(news_sentiment_router, prefix=settings.api_v1_prefix)
 
     @app.get("/healthz")
     async def healthz() -> dict:

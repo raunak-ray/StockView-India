@@ -7,12 +7,15 @@ fixtures, never the network.
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, timedelta
 
 import pytest
+from sqlalchemy.dialects import postgresql
 
 from app.modules.news import service, sources, symbols
+from app.modules.news.models import NewsArticle
 from app.modules.news.sources import RawArticle
 
 # A trimmed but structurally faithful Google News RSS payload: it carries
@@ -365,12 +368,224 @@ class TestScrapeValidation:
     async def test_rejects_out_of_range_days(self):
         for bad in (0, -1, service.MAX_DAYS + 1):
             with pytest.raises(ValueError):
-                await service.scrape(days=bad, max_symbols=1)
+                await service.scrape(symbol="RELIANCE.NS", days=bad)
 
     @pytest.mark.asyncio
-    async def test_unknown_symbol_list_raises(self):
-        with pytest.raises(ValueError, match="None of the requested symbols"):
-            await service.scrape(days=1, symbols=["NOSUCHTICKER"], max_symbols=1)
+    async def test_unknown_symbol_raises(self):
+        with pytest.raises(ValueError, match="not in the news scrape universe"):
+            await service.scrape(symbol="NOSUCHTICKER", days=1)
+
+    @pytest.mark.asyncio
+    async def test_bare_symbol_is_accepted(self):
+        """A bare NSE symbol resolves the same as the suffixed form."""
+        target = symbols.by_symbol("RELIANCE")
+        assert target is not None
+        assert target.symbol == "RELIANCE.NS"
+
+
+class TestScrapeStopsWhenSourceIsDown:
+    """The load-bearing safety property: an outage must never look like a quiet day.
+
+    `fetch_articles` used to return `[]` on network failure, which made a Google
+    503 indistinguishable from "this stock had no news" — a backfill would store
+    three years of nothing and report success.
+    """
+
+    @pytest.mark.asyncio
+    async def test_source_failure_raises_rather_than_returning_empty(self, monkeypatch):
+        async def always_down(*args, **kwargs):
+            raise sources.SourceUnavailable("google news unavailable: HTTP 503")
+
+        monkeypatch.setattr(service, "fetch_articles", always_down)
+
+        stats = service.ScrapeStats()
+        target = symbols.by_symbol("RELIANCE.NS")
+        abort = asyncio.Event()
+
+        await service.scrape_symbol(
+            client=None,  # type: ignore[arg-type]  # never reached: fetch is stubbed
+            target=target,
+            days=3,
+            end=datetime.now(UTC),
+            stats=stats,
+            semaphore=asyncio.Semaphore(1),
+            abort=abort,
+        )
+
+        assert stats.aborted is True
+        assert stats.errors == 1
+        assert abort.is_set() is True
+
+    @pytest.mark.asyncio
+    async def test_abort_event_stops_remaining_requests(self, monkeypatch):
+        """Once a window fails, the rest of the chunk must not be fired."""
+        requests: list[str] = []
+
+        async def always_down(client, terms, start, end, attempts=5):
+            requests.append("request")
+            raise sources.SourceUnavailable("HTTP 503")
+
+        monkeypatch.setattr(service, "fetch_articles", always_down)
+
+        stats = service.ScrapeStats()
+        target = symbols.by_symbol("RELIANCE.NS")
+        abort = asyncio.Event()
+        abort.set()  # already aborted — no request should be made at all
+
+        await service.scrape_symbol(
+            client=None,  # type: ignore[arg-type]
+            target=target,
+            days=50,
+            end=datetime.now(UTC),
+            stats=stats,
+            semaphore=asyncio.Semaphore(4),
+            abort=abort,
+        )
+
+        assert requests == []
+
+    @pytest.mark.asyncio
+    async def test_preflight_failure_aborts_before_any_work(self, monkeypatch):
+        """One stock over 1,000 days is ~1,000 requests. It must not start blind."""
+        scraped: list[str] = []
+
+        async def dead_preflight(client):
+            raise sources.SourceUnavailable("HTTP 503")
+
+        async def never_scrape(*args, **kwargs):
+            scraped.append("scrape")
+            return []
+
+        monkeypatch.setattr(service, "preflight", dead_preflight)
+        monkeypatch.setattr(service, "scrape_symbol", never_scrape)
+
+        with pytest.raises(service.ScrapeAborted):
+            await service.scrape(symbol="RELIANCE.NS", days=1000)
+
+        assert scraped == []
+
+
+class TestCheckpointing:
+    """Days are committed in groups, so progress is visible while a crawl runs.
+
+    A 1,000-day run at the measured rate cap is ~50 minutes. Committing only at
+    the end means a crash discards all of it.
+    """
+
+    def test_checkpoint_interval_is_30_days(self):
+        assert service.CHECKPOINT_EVERY_DAYS == 30
+
+    def test_day_chunks_partition_the_window(self):
+        chunks = service._day_chunks(1000, datetime(2026, 1, 1, tzinfo=UTC))
+        # ceil, not floor: 1,000 days is 33 full chunks of 30 plus a 10-day remainder.
+        assert len(chunks) == -(-1000 // service.CHECKPOINT_EVERY_DAYS)
+        assert sum(len(c) for c in chunks) == 1000
+        assert all(len(c) <= service.CHECKPOINT_EVERY_DAYS for c in chunks)
+
+    def test_chunks_cover_exactly_one_day_each(self):
+        for chunk in service._day_chunks(70, datetime(2026, 1, 1, tzinfo=UTC)):
+            for start, end, _ in chunk:
+                assert (end - start).days == 1
+
+    def test_newest_days_come_first(self):
+        """An interrupted run should have covered recent news before history."""
+        stop_at = datetime(2026, 1, 31, tzinfo=UTC)
+        chunks = service._day_chunks(60, stop_at)
+        first_day = chunks[0][0][0]
+        last_day = chunks[-1][-1][0]
+        assert (stop_at - first_day).days == 1
+        assert (stop_at - last_day).days == 60
+
+    @pytest.mark.asyncio
+    async def test_each_chunk_reaches_the_sink(self, monkeypatch):
+        seen: list[int] = []
+
+        async def fake(client, terms, windows, stats, sem, halt):
+            return [
+                RawArticle(f"Reliance Industries item {len(windows)}", "ET", None, None)
+            ]
+
+        async def sink(chunk):
+            seen.append(len(chunk))
+
+        monkeypatch.setattr(service, "_collect_for_windows", fake)
+        target = symbols.by_symbol("RELIANCE.NS")
+
+        await service.scrape_symbol(
+            None,  # type: ignore[arg-type]
+            target,
+            days=90,
+            end=datetime(2026, 1, 1, tzinfo=UTC),
+            on_chunk=sink,
+        )
+
+        assert len(seen) == 3  # 90 days / 30
+
+    @pytest.mark.asyncio
+    async def test_skip_days_bypasses_already_stored_windows(self, monkeypatch):
+        """A resumed run must not re-request days it already has articles for."""
+        asked: list[tuple] = []
+
+        async def fake(client, terms, windows, stats, sem, halt):
+            asked.extend(windows)
+            return []
+
+        monkeypatch.setattr(service, "_collect_for_windows", fake)
+        target = symbols.by_symbol("RELIANCE.NS")
+
+        await service.scrape_symbol(
+            None,  # type: ignore[arg-type]
+            target,
+            days=10,
+            end=datetime(2026, 1, 11, tzinfo=UTC),
+            skip_days=frozenset({date(2026, 1, 5), date(2026, 1, 6)}),
+        )
+
+        asked_days = {start.date() for start, _ in asked}
+        assert date(2026, 1, 5) not in asked_days
+        assert date(2026, 1, 6) not in asked_days
+        # 8 surviving days, tried against all 3 query rungs because the stub
+        # returns nothing and so the ladder widens.
+        assert len(asked) == 8 * len(target.query_terms())
+
+
+class TestBodyParsingDisabled:
+    def test_fill_bodies_is_not_called_by_scrape(self):
+        """Body extraction is disabled pending a source that serves publisher URLs.
+
+        The function itself stays, intact and tested, so re-enabling is a
+        two-line change rather than a rewrite.
+        """
+        import inspect
+
+        assert "fill_bodies" not in inspect.getsource(service.scrape)
+
+    def test_fill_bodies_still_exists(self):
+        assert callable(service.fill_bodies)
+
+
+class TestBodyExtraction:
+    """Bodies come from a second fetch; the schema and windowing must hold."""
+
+    def test_body_column_exists(self):
+        from app.modules.news.models import NewsArticle
+
+        assert "body" in NewsArticle.__table__.c
+
+    def test_query_used_column_is_gone(self):
+        from app.modules.news.models import NewsArticle
+
+        assert "query_used" not in NewsArticle.__table__.c
+
+    def test_body_fill_window_is_one_week(self):
+        """Bodies are a weekly-refresh luxury, never a 3-year backfill."""
+        assert service.BODY_FILL_DAYS == 7
+
+    def test_backfill_window_would_not_qualify_for_bodies(self):
+        """A 1095-day backfill stores headline-only rows by construction."""
+        cutoff = datetime.now(UTC) - timedelta(days=service.BODY_FILL_DAYS)
+        three_years_ago = datetime.now(UTC) - timedelta(days=1095)
+        assert three_years_ago < cutoff
 
 
 class TestScrapeStats:
@@ -382,6 +597,13 @@ class TestScrapeStats:
         assert payload["articles_seen"] == 10
         assert payload["duplicates"] == 6
         assert payload["symbols_processed"] == 1
+
+    def test_as_dict_reports_bodies_and_abort(self):
+        payload = service.ScrapeStats(symbol="TCS.NS", bodies_stored=3, bodies_failed=1).as_dict()
+        assert payload["symbol"] == "TCS.NS"
+        assert payload["bodies_stored"] == 3
+        assert payload["bodies_failed"] == 1
+        assert payload["aborted"] is False
 
 
 class TestStoreDedupe:
@@ -404,6 +626,165 @@ class TestStoreDedupe:
         assert {col.name for col in constraint.columns} == {"content_hash", "symbol"}
 
 
+class TestBodyUpdateStatement:
+    """The bulk body UPDATE took three attempts to get right.
+
+    SQLAlchemy's ORM "bulk update by primary key" path rejected it twice at
+    runtime — first demanding `synchronize_session=False`, then insisting the
+    dicts be keyed by `id`, which collides with the reserved `id` bindparam. None
+    of that is reachable without a live database, so the statement's shape is
+    pinned here instead. Caught by `scripts`-level DB verification, not by the
+    offline suite.
+    """
+
+    def _statement(self):
+        from sqlalchemy import bindparam, update
+
+        table = NewsArticle.__table__
+        return (
+            update(table)
+            .where(table.c.id == bindparam("article_id"))
+            .values({"body": bindparam("body")})
+        )
+
+    def test_compiles_against_the_postgres_dialect(self):
+        sql = str(self._statement().compile(dialect=postgresql.dialect()))
+        assert "UPDATE news_articles" in sql
+        assert "SET body=" in sql
+
+    def test_is_built_from_the_table_not_the_mapped_entity(self):
+        """Passing `NewsArticle` instead of `NewsArticle.__table__` is what drags
+        the statement into the ORM bulk path. Pin the target so it stays Core."""
+        statement = self._statement()
+        assert statement.table is NewsArticle.__table__
+
+    def test_bind_name_avoids_the_reserved_id(self):
+        sql = str(self._statement().compile(dialect=postgresql.dialect()))
+        assert "news_articles.id = %(article_id)s" in sql
+
+
+class TestBoilerplateFilter:
+    """Added after a live run stored 30 RELIANCE articles, 26 of them junk.
+
+    16 were Upstox auto-generated quote templates for unrelated companies
+    ("Oberoi Realty Share Price - Upstox"). These matched the quoted-phrase query
+    because the phrase constrains the query, not the results.
+    """
+
+    @pytest.mark.parametrize(
+        "title",
+        [
+            "Oberoi Realty Share Price - Live NSE: OBEROIRLTY Stock Price & Chart - Upstox",
+            "ITC Share Price - Upstox",
+            "Amber Enterprises (I) Share Price - Upstox",
+            "IEX Share Price - Upstox",
+            "RELIANCE INDUSTRIES LTD Option Chain - Live RELIANCE INDUSTRIES LTD Option Chain",
+            "HINDALCO Share Price Today - Hindalco Industries on NSE/BSE - scanx.trade",
+            "Nifty 50 Index Today (NSEI) | Live Level - TechGraph",
+            "Nifty 100 Index Price Today, Nifty 100 share price - Business Today",
+            "Top 20 Energy Stocks To Buy In India For October 2026",
+            "List of Petrochemical Stocks in India (2026) - INDmoney",
+            "Large Cap Stocks BSE | List of Top Large Cap Companies BSE - Livemint",
+        ],
+    )
+    def test_rejects_templated_pages(self, title):
+        assert service.is_boilerplate(RawArticle(title, "Upstox", None, None)) is True
+
+    @pytest.mark.parametrize(
+        "title",
+        [
+            # Real headlines that contain the same words the patterns look for.
+            "Reliance share price slips 2% after Q2 profit miss",
+            "Reliance Industries Q4 profit beats estimates",
+            "Hindustan Unilever to raise prices again, stock falls",
+            "Why is Apollo Hospitals share price down 5% today? Supreme Court verdict",
+            "Tata Steel wins top order, stock climbs",
+            "Adani Ports raises cargo guidance for FY27",
+        ],
+    )
+    def test_keeps_real_headlines(self, title):
+        assert service.is_boilerplate(RawArticle(title, "ET", None, None)) is False
+
+    def test_patterns_are_reusable_across_calls(self):
+        """Regression guard: these were a generator, so `any()` consumed them.
+
+        Every call after the first silently matched nothing — which is exactly
+        what happened in the live run before it was caught.
+        """
+        junk = RawArticle("ITC Share Price - Upstox", "Upstox", None, None)
+        real = RawArticle("Reliance Q2 profit beats estimates", "ET", None, None)
+        for _ in range(5):
+            assert service.is_boilerplate(junk) is True
+            assert service.is_boilerplate(real) is False
+
+    def test_boilerplate_is_checked_before_relevance(self):
+        """A stock's own quote page is about it and still worthless."""
+        target = symbols.by_symbol("RELIANCE.NS")
+        article = RawArticle(
+            "Reliance Industries Share Price - Live NSE: RELIANCE Stock Price & Chart - Upstox",
+            "Upstox",
+            None,
+            None,
+        )
+        assert service.is_relevant(article, target) is True
+        assert service.is_boilerplate(article) is True
+
+
+class TestDistinctiveTokens:
+    def test_strips_non_identifying_words(self):
+        tokens = service._distinctive_tokens(symbols.by_symbol("RELIANCE.NS"))
+        assert "reliance" in tokens
+        assert "industries" not in tokens
+
+    def test_falls_back_to_a_real_word_for_bank_names(self):
+        """'State Bank of India' must not match on the word 'State'."""
+        tokens = service._distinctive_tokens(symbols.by_symbol("SBIN.NS"))
+        assert "state" not in tokens
+        assert "bank" not in tokens
+
+    def test_tokens_are_deduplicated(self):
+        tokens = service._distinctive_tokens(symbols.by_symbol("RELIANCE.NS"))
+        assert len(tokens) == len(set(tokens))
+
+    def test_possessive_headline_is_accepted(self):
+        """The recall case the old strict full-name substring test threw away."""
+        target = symbols.by_symbol("RELIANCE.NS")
+        article = RawArticle("Reliance's Andhra Pradesh CBG push gathers pace", "ET", None, None)
+        assert service.is_relevant(article, target) is True
+
+
+class TestQuotedRungIsFiltered:
+    """The quoted-phrase bypass was the root cause of the junk in the corpus."""
+
+    async def test_quoted_rung_does_not_bypass_the_filter(self, monkeypatch):
+        async def junk_everywhere(client, terms, start, end):
+            return [RawArticle("Oberoi Realty Share Price - Upstox", "Upstox", None, None)]
+
+        monkeypatch.setattr(service, "fetch_articles", junk_everywhere)
+        target = symbols.by_symbol("RELIANCE.NS")
+
+        result = await service.scrape_symbol(  # type: ignore[arg-type]
+            None, target, days=1, end=datetime(2024, 5, 1, tzinfo=UTC)
+        )
+        assert result == []
+
+    async def test_quoted_rung_still_yields_real_news(self, monkeypatch):
+        async def good(client, terms, start, end):
+            return [RawArticle("Reliance Industries Q2 profit beats estimates", "ET", None, None)]
+
+        monkeypatch.setattr(service, "fetch_articles", good)
+        target = symbols.by_symbol("RELIANCE.NS")
+
+        result = await service.scrape_symbol(  # type: ignore[arg-type]
+            None, target, days=1, end=datetime(2024, 5, 1, tzinfo=UTC)
+        )
+        assert len(result) == 1
+
+    def test_precise_helper_is_gone(self):
+        """Nothing may reintroduce the "quoted means filtered" shortcut."""
+        assert not hasattr(service, "_is_precise")
+
+
 class TestOpenApiDocs:
     def test_news_endpoints_documented(self):
         from app.main import app
@@ -413,10 +794,24 @@ class TestOpenApiDocs:
         assert "/api/v1/news/articles" in paths
         assert "/api/v1/news/coverage" in paths
 
+    def test_scrape_is_a_post(self):
+        from app.main import app
+
+        assert "post" in app.openapi()["paths"]["/api/v1/news/scrape"]
+
+    def test_scrape_takes_only_symbol_and_days(self):
+        """The two-field contract is deliberate — see ScrapeRequest's docstring."""
+        from app.main import app
+
+        body = app.openapi()["paths"]["/api/v1/news/scrape"]["post"]["requestBody"]
+        ref = body["content"]["application/json"]["schema"]["$ref"].rsplit("/", 1)[-1]
+        schema = app.openapi()["components"]["schemas"][ref]
+        assert set(schema["properties"]) == {"symbol", "days"}
+
     def test_scrape_documents_the_days_parameter_and_truncation_reason(self):
         from app.main import app
 
-        op = app.openapi()["paths"]["/api/v1/news/scrape"]["get"]
+        op = app.openapi()["paths"]["/api/v1/news/scrape"]["post"]
         description = op["description"]
         assert "one day at a time" in description
         assert "truncat" in description.lower()
