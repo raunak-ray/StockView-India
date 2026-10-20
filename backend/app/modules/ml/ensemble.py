@@ -20,7 +20,6 @@ from sklearn.preprocessing import StandardScaler
 
 from app.modules.ml import capabilities as caps
 from app.modules.ml.features import TREE_FEATS, build_features
-from app.modules.sentiment.service import get_sentiment_score
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +51,7 @@ def run_ml(
     headlines: list | None = None,
     use_lstm: bool = False,
     use_finbert: bool = False,
+    sentiment: dict[str, Any] | None = None,  # pre-computed, never inferred here
 ) -> dict[str, Any] | None:
     """
     Professional Ensemble AI Engine v2.0 (parity app.py:2650).
@@ -206,12 +206,24 @@ def run_ml(
         except Exception:  # noqa: BLE001, S110
             pass
 
-    # ── FinBERT sentiment bias ───────────────────────────────────
-    sentiment: dict[str, Any] = {"score": 0.0, "label": "NEUTRAL", "detail": []}
+    # ── Sentiment bias ────────────────────────────────────
+    # `sentiment` is passed in pre-computed by the caller (news/sentiment), so
+    # the model is never re-run here. Bias stays capped at ±0.05.
+    stored_sentiment: dict[str, Any] = {
+        "score": 0.0,
+        "label": "NEUTRAL",
+        "detail": [],
+        "article_count": 0,
+    }
     sent_bias = 0.0
-    if use_finbert and headlines:
-        sentiment = get_sentiment_score(headlines)
-        sent_bias = float(np.clip(sentiment["score"] * 0.10, -0.05, 0.05))
+    if sentiment:
+        stored_sentiment = {
+            "score": float(sentiment.get("score", 0.0)),
+            "label": sentiment.get("label", "NEUTRAL"),
+            "detail": sentiment.get("detail", []),
+            "article_count": sentiment.get("article_count", 0),
+        }
+        sent_bias = float(np.clip(stored_sentiment["score"] * 0.10, -0.05, 0.05))
 
     # ── Weighted ensemble ────────────────────────────────────────
     total_w = sum(w for _, w in probs_list)
@@ -316,7 +328,7 @@ def run_ml(
         "conf_tier": {"tier": tier[0], "tone": tier[1]},
         "up_prob": round(ens_up * 100, 1),
         "dn_prob": round(ens_dn * 100, 1),
-        "sentiment": sentiment,
+        "sentiment": stored_sentiment,
         "lstm_prob": round(lstm_up * 100, 1),
         "walk_fwd_acc": round(wf_acc, 1),
         "ensemble_size": len(probs_list),

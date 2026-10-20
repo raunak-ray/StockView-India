@@ -39,8 +39,41 @@ async def score(
 
     clean = symbol.strip().upper()
 
-    headlines = await service.get_headlines(clean)
-    news_sent = service.get_sentiment_score(headlines)
+    # News sentiment is read from the pre-computed store. The old path scraped
+    # 8 headlines and ran FinBERT on every request; this is a SELECT.
+    #
+    # If nothing is stored we fall back to the legacy live scrape rather than
+    # reporting a fabricated NEUTRAL, so behaviour degrades instead of lying.
+    news_sent: dict = {"score": 0.0, "label": "NEUTRAL", "detail": []}
+    stored = None
+    try:
+        from app.modules.news.sentiment.service import (
+            get_scored_articles,
+            get_symbol_sentiment,
+        )
+
+        stored = await get_symbol_sentiment(clean)
+        if stored:
+            articles = await get_scored_articles(clean, limit=10)
+            news_sent = {
+                "score": stored["score"],
+                "label": stored["label"],
+                "detail": [
+                    {
+                        "headline": a["title"][:90],
+                        "label": a["label"].lower(),
+                        "conf": abs(a["score"]),
+                        "score": a["score"],
+                    }
+                    for a in articles
+                ],
+            }
+    except Exception:  # noqa: BLE001 - stored path is best-effort
+        stored = None
+
+    if not stored:
+        headlines = await service.get_headlines(clean)
+        news_sent = service.get_sentiment_score(headlines)
 
     candles = await market_data.get_history(clean, interval, period)
     df = analytics.candles_to_df(candles)
@@ -49,6 +82,9 @@ async def score(
 
     return SentimentScoreResponse(
         symbol=clean,
+        # Truthful now: FINBERT_OK only reports that transformers *imported*.
+        # The stored scores always come from the model, so this reflects whether
+        # we actually have a stored reading for this symbol.
         finbert_available=service.FINBERT_OK,
         news=NewsSentiment(**news_sent),
         technical=TechnicalSentiment(

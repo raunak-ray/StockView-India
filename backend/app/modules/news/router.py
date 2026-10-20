@@ -26,7 +26,7 @@ from app.modules.news.schemas import (
     ScrapeRequest,
     ScrapeResult,
 )
-from app.modules.news.service import MAX_DAYS, scrape
+from app.modules.news.service import MAX_DAYS, ScrapeAborted, scrape
 
 logger = logging.getLogger(__name__)
 
@@ -37,36 +37,46 @@ router = APIRouter(
 )
 
 
-@router.get(
+@router.post(
     "/scrape",
     response_model=ScrapeResult,
-    summary="Scrape news headlines into the news database",
+    summary="Scrape news for one stock into the news database",
     description=(
-        "Collects Google News headlines per symbol and stores them in the "
-        "**separate news database** (`SV_DATABASE_NEWS_URL`).\n\n"
+        "Collects Google News articles for **one** stock over the last `days` "
+        "days and stores them in the **separate news database** "
+        "(`SV_DATABASE_NEWS_URL`).\n\n"
         "**How `days` works:** the look-back window is sliced **one day at a "
         "time**. A single wide query silently truncates — measured on RELIANCE, "
         "one 7-day query returned 9 headlines versus 32 from seven 1-day "
-        "queries (25% vs 100% recall). Expect roughly `days x symbols` requests.\n\n"
+        "queries (25% vs 100% recall). Expect roughly `days` requests per query "
+        "rung.\n\n"
+        "**Bodies:** no feed carries article text, so it costs a second request "
+        "per article. Bodies are therefore only fetched for articles published "
+        "in the last 7 days — `days=7` fills text, `days=1095` stores "
+        "headline-only rows. A `null` body is normal, not an error.\n\n"
         "**Idempotent:** duplicates are skipped on `(content_hash, symbol)`, so "
-        "re-running never double-stores. Re-scrape a 7-day window after a 3-year "
-        "backfill to pick up anything missed.\n\n"
-        "Use `days=7` for the weekly refresh or `days=1095` for the one-time "
-        "3-year backfill. This is a synchronous, long-running call — prefer "
-        "`max_symbols` for large windows."
+        "re-running never double-stores and re-running after a failure resumes "
+        "where it stopped.\n\n"
+        "**Stops on upstream failure:** if Google News stops responding the run "
+        "is aborted with `503` rather than quietly storing an empty result. "
+        "Wait for the block to clear and re-issue the same request.\n\n"
+        "Synchronous and long-running — a 3-year backfill is ~1,095 requests, "
+        "roughly 12 minutes at the built-in rate limit."
     ),
+    responses={503: {"description": "Google News is not responding; nothing was stored."}},
 )
 async def run_scrape(payload: ScrapeRequest) -> ScrapeResult:
     started = time.perf_counter()
     try:
-        stats = await scrape(
-            days=payload.days,
-            symbols=payload.symbols,
-            max_symbols=payload.max_symbols,
-            concurrency=payload.concurrency,
-        )
+        stats = await scrape(days=payload.days, symbol=payload.symbol)
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except ScrapeAborted as exc:
+        logger.error("news scrape aborted: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Upstream news source unavailable, nothing stored: {exc}",
+        ) from exc
     except Exception as exc:
         logger.exception("news scrape failed")
         raise HTTPException(
