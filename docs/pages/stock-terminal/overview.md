@@ -74,7 +74,9 @@ You click the RELIANCE.NS mover on the dashboard. The stock terminal loads:
 - **Renders SMC zones** (order blocks, fair value gaps, premium/discount
   zones) when the SMC toggle is on.
 - **Computes ML predictions** (ensemble + LSTM) per symbol.
-- **Shows live news headlines** with FinBERT or keyword sentiment scores.
+- **Shows news sentiment** from the stored archive when we have it — with the
+  1M/3M/1Y/3Y breakdown and the strongest stories — and live headlines for a
+  stock we have not archived yet.
 
 ## What the page does not do
 
@@ -145,7 +147,7 @@ across 9 modules in parallel.
 - [Analytics](../../modules/analytics/overview.md) — `GET /indicators` (RSI, MACD, BB, ATR, SMA, EMA).
 - [Signals](../../modules/signals/overview.md) — `GET /fusion` (the 3-layer verdict).
 - [SMC](../../modules/smc/overview.md) — `GET /smc` (BOS, CHoCH, OB, FVG overlay).
-- [Sentiment](../../modules/sentiment/overview.md) — `GET /headlines` + `GET /score`.
+- [Sentiment](../../modules/sentiment/overview.md) — `GET /insight` (stored archive, live fallback).
 - [ML](../../modules/ml/overview.md) — `GET /predict` (ensemble) and `GET /predict/lstm`.
 - [NSE](../../modules/nse/overview.md) — `GET /quote` as a fallback when Yahoo is down.
 - [Portfolio](../../modules/portfolio/overview.md) — `GET /watchlist` + `POST /watchlist` (the star button).

@@ -958,6 +958,136 @@ async def get_scored_articles(
     ]
 
 
+def _empty_period_card(key: str) -> dict[str, Any]:
+    """A period we have no rows for.
+
+    Returned instead of omitting the key so the frontend always finds the four
+    periods it knows about and can render an inactive tab instead of a hole.
+    """
+    cfg = PERIODS[key]
+    return {
+        "period": key,
+        "title": cfg["label"],
+        "days": cfg["days"],
+        "available": False,
+        "score": None,
+        "label": "NO_DATA",
+        "article_count": 0,
+        "pos_count": 0,
+        "neu_count": 0,
+        "neg_count": 0,
+        "avg_confidence": 0.0,
+        "sentiment_change": None,
+        "window_start": None,
+        "window_end": None,
+        "price_start": None,
+        "price_end": None,
+        "price_change_pct": None,
+    }
+
+
+def _labelled_extremes(items: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
+    """Add a label to the stored extremes.
+
+    The rows in `stock_news_sentiment.top_positive` / `top_negative` were
+    written before the label existed — they carry the score and nothing else.
+    The tone follows the score, so it is derived here rather than making the
+    whole corpus re-aggregate for one field.
+    """
+    out: list[dict[str, Any]] = []
+    for item in items or []:
+        try:
+            score = float(item.get("score", 0.0))
+        except (TypeError, ValueError):
+            score = 0.0
+        out.append({**item, "label": label_for(score)})
+    return out
+
+
+async def get_symbol_bundle(
+    symbol: str, article_limit: int = 12
+) -> dict[str, Any] | None:
+    """Everything stored for one symbol, in a single call.
+
+    Three reads and no work: the per-stock summary and the four period cards
+    live in the main database, the scored headlines live in the news database.
+
+    Returns None when the stock has no stored sentiment at all. The caller
+    then falls back to the live path — "no coverage" and "the news was neutral"
+    are different claims, and only one of them is true for a stock we never
+    scraped.
+    """
+    clean = symbol.strip().upper()
+
+    async with SessionLocal() as app:
+        summary = (
+            await app.execute(
+                select(StockNewsSentiment).where(StockNewsSentiment.symbol == clean)
+            )
+        ).scalar_one_or_none()
+        period_rows = (
+            await app.execute(
+                select(NewsSentimentPeriod).where(NewsSentimentPeriod.symbol == clean)
+            )
+        ).scalars().all()
+
+    if summary is None or not summary.article_count:
+        return None
+
+    periods: dict[str, Any] = {key: _empty_period_card(key) for key in PERIODS}
+    for row in period_rows:
+        card = periods.get(row.period)
+        if card is None:
+            continue
+        card.update(
+            {
+                "available": True,
+                "score": round(float(row.score), 4),
+                "label": row.label,
+                "article_count": row.article_count,
+                "pos_count": row.pos_count,
+                "neu_count": row.neu_count,
+                "neg_count": row.neg_count,
+                "avg_confidence": round(float(row.avg_confidence), 4),
+                "sentiment_change": round(float(row.sentiment_change), 4),
+                "window_start": row.window_start.isoformat()
+                if row.window_start
+                else None,
+                "window_end": row.window_end.isoformat() if row.window_end else None,
+                "price_start": row.price_start,
+                "price_end": row.price_end,
+                "price_change_pct": round(float(row.price_change_pct), 3)
+                if row.price_change_pct is not None
+                else None,
+            }
+        )
+
+    articles = await get_scored_articles(clean, limit=article_limit)
+
+    return {
+        "symbol": summary.symbol,
+        "score": round(float(summary.score), 4),
+        "label": summary.label,
+        "article_count": summary.article_count,
+        "counts": {
+            "positive": summary.pos_count,
+            "neutral": summary.neu_count,
+            "negative": summary.neg_count,
+        },
+        "avg_confidence": round(float(summary.avg_confidence), 4),
+        "window": {
+            "start": summary.window_start,
+            "end": summary.window_end,
+        },
+        "periods": periods,
+        "articles": articles,
+        "top_positive": _labelled_extremes(summary.top_positive),
+        "top_negative": _labelled_extremes(summary.top_negative),
+        "model_version": summary.model_version,
+        "updated_at": summary.updated_at.isoformat() if summary.updated_at else None,
+    }
+
+
 async def scoring_status() -> dict[str, Any]:
     """How much of the corpus has been scored — drives the CLI --status flag."""
     async with NewsSessionLocal() as news:

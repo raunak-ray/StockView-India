@@ -2,6 +2,35 @@
 
 Notable changes to the docs tree. Newest first.
 
+## October 2026 — stored news sentiment on the stock page
+
+The news module now serves the **stored** sentiment archive first and only
+falls back to a live scrape for a stock we have never scraped.
+
+### New
+
+- `GET /api/v1/sentiment/insight` — one call for the whole news-and-mood
+  card: the score, the 1M/3M/1Y/3Y breakdown, the strongest positive and
+  negative stories, the latest articles and the technical layer. The response
+  carries `isStoredData` so the UI can say where the numbers came from.
+- The stock page gained two cards: **News over time** (the four period cards)
+  and **Biggest stories** (the five strongest positive and negative stories).
+
+### Changed
+
+- `GET /sentiment/news` and `GET /sentiment/score` are **deprecated**. Their
+  controllers are commented out in the router and the routes answer with a
+  notice pointing at `/sentiment/insight`.
+- The live scoring function now reports `isStoredData: false`; the stored path
+  reports `true`.
+
+### Updated
+
+- `modules/sentiment/` — overview, how-it-works and implementation rewritten
+  around the stored-first flow, with the request trace and the file map.
+- `pages/stock-terminal/` — the news card section, the hooks table and the
+  parallel-fetch diagram now point at `/sentiment/insight`.
+
 ## October 2026 — blockchain module
 
 The blockchain module shipped, and the handbook gained a 14th module

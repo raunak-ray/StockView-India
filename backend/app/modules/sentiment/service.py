@@ -4,13 +4,17 @@ Ports (verbatim math and thresholds):
 - fetch_news_headlines      (app.py:77)   Yahoo RSS → Google News RSS → yfinance
 - get_sentiment_score       (app.py:2306) FinBERT 70% + keyword 30% blend
 - compute_technical_sentiment (app.py:2402) 10 rule signals from indicators
+
+Also the request-path entry point `get_insight`: stored sentiment when we have
+it, the live scrape above when we do not, and `isStoredData` to say which.
 """
 
 from __future__ import annotations
 
 import logging
 import re
-from typing import Any
+from datetime import UTC, datetime
+from typing import Any, cast
 
 import anyio.to_thread
 import numpy as np
@@ -171,6 +175,12 @@ def get_sentiment_score(headlines: list) -> dict:
     Layer 1 — FinBERT (if installed), Layer 2 — keyword fallback.
     Blend: FinBERT 70% + keyword 30% when both available.
     Returns score in [-1, +1], label BULLISH/BEARISH/NEUTRAL, per-headline detail.
+
+    `isStoredData` is always False here: this is the **live** path — headlines
+    scraped right now and scored on the spot. The stored path
+    (`app/modules/news/sentiment/service.py`) sets it to True, so the frontend
+    can tell the user whether a number came from our archive or from a live
+    scrape.
     """
     results: list[dict] = []
     scored: list[float] = []
@@ -210,7 +220,7 @@ def get_sentiment_score(headlines: list) -> dict:
         })
 
     if not scored:
-        return {"score": 0.0, "label": "NEUTRAL", "detail": []}
+        return {"score": 0.0, "label": "NEUTRAL", "detail": [], "isStoredData": False}
 
     avg = float(np.mean(scored))
     if avg > 0.08:
@@ -219,7 +229,12 @@ def get_sentiment_score(headlines: list) -> dict:
         label = "BEARISH"
     else:
         label = "NEUTRAL"
-    return {"score": round(avg, 4), "label": label, "detail": results}
+    return {
+        "score": round(avg, 4),
+        "label": label,
+        "detail": results,
+        "isStoredData": False,
+    }
 
 
 # ── Technical sentiment (verbatim port of app.py:2402-2577, minus emoji) ─────
@@ -395,3 +410,135 @@ def compute_technical_sentiment(df: pd.DataFrame) -> dict:
         label = "NEUTRAL"
 
     return {"score": round(norm, 4), "label": label, "signals": signals, "raw_score": round(score, 2)}
+
+
+# ── Insight: stored sentiment first, live headlines as the fallback ─────────
+
+# Where a sentiment number came from. The frontend renders a different card for
+# each: stored numbers carry a period breakdown and an archive of articles, live
+# numbers are a snapshot of the last few headlines.
+STORED_SOURCE = "stored"
+LIVE_SOURCE = "live"
+
+# Stored label -> the label the live path uses for the same meaning, so the UI
+# tones match whatever it is looking at.
+_STORED_TO_TONE = {"BULLISH": "positive", "BEARISH": "negative", "NEUTRAL": "neutral"}
+
+
+async def get_technical_sentiment(
+    symbol: str, interval: str = "1d", period: str = "2y"
+) -> dict[str, Any]:
+    """Chart-side sentiment — ten indicator rules over the price history."""
+    from app.modules.analytics import service as analytics
+    from app.modules.market_data import service as market_data
+
+    candles = await market_data.get_history(symbol, cast(Any, interval), cast(Any, period))
+    df = analytics.candles_to_df(candles)
+    df = analytics.add_indicators(df)
+    return compute_technical_sentiment(df)
+
+
+def _technical_payload(technical: dict[str, Any]) -> dict[str, Any]:
+    """Shape the technical result for the API (tuples -> dicts)."""
+    return {
+        "score": technical["score"],
+        "label": technical["label"],
+        "raw_score": technical["raw_score"],
+        "signals": [
+            {"name": name, "tone": tone, "message": message, "weight": weight}
+            for (name, tone, message, weight) in technical["signals"]
+        ],
+    }
+
+
+async def get_insight(
+    symbol: str, interval: str = "1d", period: str = "2y"
+) -> dict[str, Any]:
+    """One payload for the news-and-mood card of a stock page.
+
+    Stored first: the news database holds years of scored headlines for the
+    stocks we track, so for those the answer is a SELECT — the score, the
+    1M/3M/1Y/3Y breakdown, the strongest positive and negative stories and the
+    most recent articles, all already computed.
+
+    Live fallback: for a stock we have never scraped there is nothing stored,
+    so the legacy path runs once — scrape a handful of headlines, score them —
+    and the response says so through `isStoredData: False`. That flag is the
+    difference between "our archive says the news was flat" and "we found no
+    news for this stock".
+    """
+    clean = symbol.strip().upper()
+
+    stored: dict[str, Any] | None = None
+    try:
+        from app.modules.news.sentiment import service as stored_service
+
+        stored = await stored_service.get_symbol_bundle(clean)
+    except Exception as exc:  # noqa: BLE001 - stored path is best-effort
+        logger.warning("stored sentiment lookup failed for %s: %s", clean, exc)
+        stored = None
+
+    if stored:
+        news = {
+            "score": stored["score"],
+            "label": stored["label"],
+            "article_count": stored["article_count"],
+            "counts": stored["counts"],
+            "avg_confidence": stored["avg_confidence"],
+            "window": stored["window"],
+            "detail": [
+                {
+                    "headline": article["title"][:90],
+                    "label": _STORED_TO_TONE.get(str(article["label"]).upper(), "neutral"),
+                    "conf": abs(article["score"]),
+                    "score": article["score"],
+                }
+                for article in stored["articles"]
+            ],
+        }
+        source = STORED_SOURCE
+    else:
+        headlines = await get_headlines(clean)
+        live = get_sentiment_score(headlines)
+        detail = live["detail"]
+        news = {
+            "score": live["score"],
+            "label": live["label"],
+            "article_count": len(headlines),
+            "counts": {
+                "positive": sum(1 for item in detail if item["label"] == "positive"),
+                "neutral": sum(1 for item in detail if item["label"] == "neutral"),
+                "negative": sum(1 for item in detail if item["label"] == "negative"),
+            },
+            "avg_confidence": round(
+                sum(float(item["conf"]) for item in detail) / len(detail), 4
+            )
+            if detail
+            else 0.0,
+            "window": {"start": None, "end": None},
+            "detail": detail,
+        }
+        source = LIVE_SOURCE
+
+    try:
+        technical = _technical_payload(
+            await get_technical_sentiment(clean, interval, period)
+        )
+    except Exception as exc:  # noqa: BLE001 - a missing quote must not hide sentiment
+        logger.warning("technical sentiment failed for %s: %s", clean, exc)
+        technical = {"score": 0.0, "label": "NEUTRAL", "raw_score": 0.0, "signals": []}
+
+    return {
+        "symbol": clean,
+        "isStoredData": source == STORED_SOURCE,
+        "source": source,
+        "news": news,
+        "technical": technical,
+        "periods": stored["periods"] if stored else {},
+        "top_articles": stored["articles"] if stored else [],
+        "top_positive": stored["top_positive"] if stored else [],
+        "top_negative": stored["top_negative"] if stored else [],
+        "model_version": stored["model_version"] if stored else None,
+        "updated_at": stored.get("updated_at") if stored else None,
+        "generated_at": datetime.now(UTC).isoformat(),
+    }
