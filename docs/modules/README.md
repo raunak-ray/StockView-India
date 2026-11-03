@@ -21,8 +21,9 @@ request traces).
 | **NSE** | Quote, option chain (PCR + max-pain), FII/DII, advances/declines — each with multi-layer fallback | [overview](nse/overview.md) · [how it works](nse/how-it-works.md) · [implementation](nse/implementation.md) · 720 lines |
 | **Compare** | 2–4 symbol side-by-side, price normalisation to base 100, in-place indicator compute | [overview](compare/overview.md) · [how it works](compare/how-it-works.md) · [implementation](compare/implementation.md) · 602 lines |
 | **Blockchain** | Predictions written to a Ganache chain, ×100 fixed-point scaling, duplicate suppression | [overview](blockchain/overview.md) · [how it works](blockchain/how-it-works.md) · [implementation](blockchain/implementation.md) · 689 lines · **no tests** |
+| **News** | Google News scraper (86 Nifty 100 stocks), isolated news database, per-symbol/period sentiment with price alignment | [overview](news/overview.md) · [how it works](news/how-it-works.md) · [implementation](news/implementation.md) |
 
-**Total: 14 modules · 42 files.**
+**Total: 15 modules · 45 files.**
 
 Database storage is covered in [Database](../database.md). Setup and
 troubleshooting are in [Setup](../setup.md). The architecture diagram is

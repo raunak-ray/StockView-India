@@ -9,37 +9,37 @@
 # stop it first or point SV_DATABASE_URL at it instead.
 #
 services:
-  postgres:
-    image: postgres:16-alpine
-    container_name: stockview-postgres
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: stockview
-    ports:
-      - "5432:5432"
-    volumes:
-      - stockview-pg-data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d stockview"]
-      interval: 10s
-      timeout: 3s
-      retries: 5
+  # postgres:
+  #   image: postgres:16-alpine
+  #   container_name: stockview-postgres
+  #   restart: unless-stopped
+  #   environment:
+  #     POSTGRES_USER: postgres
+  #     POSTGRES_PASSWORD: postgres
+  #     POSTGRES_DB: stockview
+  #   ports:
+  #     - "5432:5432"
+  #   volumes:
+  #     - stockview-pg-data:/var/lib/postgresql/data
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "pg_isready -U postgres -d stockview"]
+  #     interval: 10s
+  #     timeout: 3s
+  #     retries: 5
 
-  redis:
-    image: redis:7-alpine
-    container_name: stockview-redis
-    restart: unless-stopped
-    ports:
-      - "6379:6379"
-    volumes:
-      - stockview-redis-data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 3s
-      retries: 5
+  # redis:
+  #   image: redis:7-alpine
+  #   container_name: stockview-redis
+  #   restart: unless-stopped
+  #   ports:
+  #     - "6379:6379"
+  #   volumes:
+  #     - stockview-redis-data:/data
+  #   healthcheck:
+  #     test: ["CMD", "redis-cli", "ping"]
+  #     interval: 10s
+  #     timeout: 3s
+  #     retries: 5
 
   # Local Ethereum-compatible chain for StockPrediction contract.
   # Truffle + backend expect RPC at http://127.0.0.1:7545.

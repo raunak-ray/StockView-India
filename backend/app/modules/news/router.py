@@ -23,10 +23,12 @@ from app.modules.news.schemas import (
     NewsArticleListResponse,
     NewsArticleOut,
     NewsCoverageResponse,
+    ScrapeAllRequest,
+    ScrapeAllResult,
     ScrapeRequest,
     ScrapeResult,
 )
-from app.modules.news.service import MAX_DAYS, ScrapeAborted, scrape
+from app.modules.news.service import MAX_DAYS, ScrapeAborted, scrape, scrape_all
 
 logger = logging.getLogger(__name__)
 
@@ -85,6 +87,27 @@ async def run_scrape(payload: ScrapeRequest) -> ScrapeResult:
         ) from exc
 
     return ScrapeResult.from_stats(stats, round(time.perf_counter() - started, 2))
+
+
+@router.post(
+    "/scrape-all",
+    response_model=ScrapeAllResult,
+    summary="Refresh news for every symbol already stored",
+)
+async def run_scrape_all(payload: ScrapeAllRequest) -> ScrapeAllResult:
+    started = time.perf_counter()
+    try:
+        stats = await scrape_all(days=payload.days)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception("news scrape-all failed")
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"News scrape-all failed: {exc}",
+        ) from exc
+
+    return ScrapeAllResult.from_stats(stats, round(time.perf_counter() - started, 2))
 
 
 @router.get(

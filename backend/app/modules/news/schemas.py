@@ -40,6 +40,26 @@ class ScrapeRequest(BaseModel):
     )
 
 
+class ScrapeAllRequest(BaseModel):
+    """Body for `POST /news/scrape-all`.
+
+    Refreshes news for every symbol already stored in the news database. Only
+    the look-back window is configurable; the symbol set is derived from the
+    existing rows so a refresh never invents new symbols.
+    """
+
+    days: int = Field(
+        default=30,
+        ge=1,
+        le=3650,
+        description=(
+            "How many days back to collect for every stored symbol. Defaults to "
+            "30 for a weekly-style refresh."
+        ),
+        examples=[30],
+    )
+
+
 class ScrapeResult(BaseModel):
     """Outcome of one scrape run."""
 
@@ -83,6 +103,38 @@ class ScrapeResult(BaseModel):
             bodies_stored=stats.bodies_stored,
             bodies_failed=stats.bodies_failed,
             duration_seconds=duration_seconds,
+        )
+
+
+class ScrapeAllResult(BaseModel):
+    """Outcome of a refresh run across every stored symbol."""
+
+    symbols_processed: int = Field(description="Number of distinct symbols refreshed.")
+    articles_seen: int = Field(description="Headlines returned by the source.")
+    articles_new: int = Field(description="Rows actually inserted (deduped).")
+    duplicates: int = Field(description="Headlines skipped as duplicates.")
+    rejected: int = Field(description="Headlines dropped by the relevance filter.")
+    requests: int = Field(description="HTTP requests made.")
+    errors: int = 0
+    bodies_stored: int = 0
+    bodies_failed: int = 0
+    duration_seconds: float = 0.0
+    per_symbol: dict[str, int] = Field(default_factory=dict)
+
+    @classmethod
+    def from_stats(cls, stats: ScrapeStats, duration_seconds: float) -> "ScrapeAllResult":
+        return cls(
+            symbols_processed=len(stats.per_symbol),
+            articles_seen=stats.articles_seen,
+            articles_new=stats.articles_new,
+            duplicates=stats.duplicates,
+            rejected=stats.rejected,
+            requests=stats.requests,
+            errors=stats.errors,
+            bodies_stored=stats.bodies_stored,
+            bodies_failed=stats.bodies_failed,
+            duration_seconds=duration_seconds,
+            per_symbol=stats.per_symbol,
         )
 
 
