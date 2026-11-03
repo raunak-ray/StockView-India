@@ -697,3 +697,63 @@ async def scrape(
         stats.errors,
     )
     return stats
+
+
+async def distinct_symbols() -> list[str]:
+    """Every symbol currently stored in the news database, sorted."""
+    async with NewsSessionLocal() as session:
+        rows = await session.execute(select(NewsArticle.symbol).distinct())
+        return sorted({row[0] for row in rows.all() if row[0]})
+
+
+async def scrape_all(
+    days: int = 7,
+    requests_per_second: float = DEFAULT_REQUESTS_PER_SECOND,
+) -> ScrapeStats:
+    """Refresh news for every symbol already stored in the news database.
+
+    Queries `news_articles` for the distinct set of symbols, then runs the
+    normal single-symbol scrape for each of them in sequence. `days` is the
+    look-back window (default 30) — small enough for a weekly refresh, large
+    enough to backfill gaps.
+
+    A failure on one symbol is logged and skipped so one bad stock cannot
+    abort the whole batch. Returns aggregate counters across all symbols.
+    """
+    if days < 1 or days > MAX_DAYS:
+        raise ValueError(f"days must be between 1 and {MAX_DAYS}")
+
+    symbols = await distinct_symbols()
+    if not symbols:
+        logger.info("news: scrape_all found no stored symbols, nothing to do")
+        return ScrapeStats(symbol="ALL")
+
+    logger.info("news: scrape_all refreshing %d symbols over %d days", len(symbols), days)
+
+    aggregate = ScrapeStats(symbol="ALL")
+    for symbol in symbols:
+        try:
+            stats = await scrape(symbol=symbol, days=days, requests_per_second=requests_per_second)
+        except (ValueError, ScrapeAborted) as exc:
+            aggregate.errors += 1
+            logger.error("news: scrape_all failed for %s: %s", symbol, exc)
+            continue
+        aggregate.articles_seen += stats.articles_seen
+        aggregate.articles_new += stats.articles_new
+        aggregate.duplicates += stats.duplicates
+        aggregate.rejected += stats.rejected
+        aggregate.requests += stats.requests
+        aggregate.errors += stats.errors
+        aggregate.bodies_stored += stats.bodies_stored
+        aggregate.bodies_failed += stats.bodies_failed
+        aggregate.per_symbol[symbol] = stats.articles_new
+        if stats.aborted:
+            aggregate.aborted = True
+
+    logger.info(
+        "news: scrape_all done - %d symbols, %d new articles, %d errors",
+        len(symbols),
+        aggregate.articles_new,
+        aggregate.errors,
+    )
+    return aggregate

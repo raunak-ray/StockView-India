@@ -23,7 +23,7 @@ from datetime import UTC, date, datetime, timedelta
 from typing import Any, cast
 
 import numpy as np
-from sqlalchemy import Row, func, select
+from sqlalchemy import Row, delete, func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from app.core.db import SessionLocal
@@ -521,6 +521,28 @@ async def aggregate_symbols(symbol: str | None = None) -> dict[str, Any]:
                         .excluded.model_version,
                         "updated_at": pg_insert(StockNewsSentiment).excluded.updated_at,
                     },
+                )
+            )
+            await app.commit()
+
+        # Delete rows for symbols that no longer have any scored articles.
+        #
+        # The upsert above only ever touches symbols present in the corpus, so a
+        # symbol whose articles were deleted keeps its old summary forever —
+        # and `/news/sentiment/ranking` then lists it with a score computed from
+        # headlines that no longer exist. That is the same class of bug as
+        # reporting NEUTRAL for a stock we never measured: a confident-looking
+        # number about nothing.
+        live_symbols = {s["symbol"] for s in summaries}
+        if live_symbols:
+            await app.execute(
+                delete(StockNewsSentiment).where(
+                    StockNewsSentiment.symbol.not_in(live_symbols)
+                )
+            )
+            await app.execute(
+                delete(NewsSentimentPeriod).where(
+                    NewsSentimentPeriod.symbol.not_in(live_symbols)
                 )
             )
             await app.commit()
