@@ -17,6 +17,7 @@ tables.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
@@ -146,6 +147,7 @@ async def score_pending(
     if pipe is None:
         logger.warning("news sentiment: FinBERT unavailable — keyword scores only")
 
+    print("[*] Checking for unscored articles in news database...", flush=True)
     async with NewsSessionLocal() as news:
         query = (
             select(
@@ -170,14 +172,22 @@ async def score_pending(
 
     result = ScoreResult(unscored_seen=len(pending), batch_size=batch_size)
     if not pending:
+        print("[*] No pending articles found — all stored articles are already scored.", flush=True)
         logger.info("news sentiment: nothing pending")
         return result
+
+    print(f"[*] Found {len(pending):,} pending articles to score.", flush=True)
+    if pipe is not None:
+        print(f"[*] Running FinBERT inference in batches of {batch_size}...", flush=True)
+    else:
+        print("[*] FinBERT unavailable — running keyword scoring fallback...", flush=True)
 
     # Model scoring is CPU-bound and synchronous, so it runs off the event loop
     # in one go rather than per-article.
     scored_rows, fallbacks = await _run_model(pending, pipe, keyword_score, batch_size)
     result.keyword_fallback = fallbacks
 
+    print(f"[*] Committing {len(scored_rows):,} scored articles to news database...", flush=True)
     async with NewsSessionLocal() as news:
         # Chunked because a single multi-VALUES insert is one bind parameter per
         # column per row. Each sentiment row has 12 columns, so the whole corpus
@@ -240,15 +250,28 @@ def _score_sync(
         fallbacks = len(pending)
         outputs = []
     else:
-        # top_k=None returns all three class probabilities, not just the top one.
-        # That matters: collapsing to a single number is irreversible, and the
-        # stored pos/neu/neg split is what lets the blend be re-tuned later
-        # without re-running the model.
-        #
-        # max_length=256 is ample for a headline and ~2x faster than 512.
-        outputs = pipe(
-            titles, batch_size=batch_size, truncation=True, max_length=256, top_k=None
-        )
+        # Batch inference through FinBERT with live progress
+        outputs = []
+        try:
+            from tqdm import tqdm
+            pbar = tqdm(
+                total=len(titles),
+                desc="Scoring headlines",
+                unit="article",
+                dynamic_ncols=True,
+            )
+        except ImportError:
+            pbar = None
+
+        for offset in range(0, len(titles), batch_size):
+            chunk = titles[offset : offset + batch_size]
+            batch_res = pipe(chunk, truncation=True, max_length=256, top_k=None)
+            outputs.extend(batch_res)
+            if pbar is not None:
+                pbar.update(len(chunk))
+
+        if pbar is not None:
+            pbar.close()
 
     rows: list[dict[str, Any]] = []
     for index, (article_id, symbol, title, published_at) in enumerate(pending):
@@ -303,6 +326,7 @@ async def aggregate_symbols(symbol: str | None = None) -> dict[str, Any]:
     Recomputed from scratch each run rather than incremented, so it can never
     drift out of sync with the article-level scores.
     """
+    print("[*] Fetching scored sentiment rows from news database...", flush=True)
     async with NewsSessionLocal() as news:
         query = (
             select(
@@ -476,9 +500,7 @@ async def aggregate_symbols(symbol: str | None = None) -> dict[str, Any]:
                 }
             )
 
-    # Price is fetched per symbol, once, and shared across that symbol's four
-    # periods. Failure is recorded as NULLs rather than aborting: a stock with
-    # news but an unreachable quote must still report its sentiment.
+    print(f"[*] Correlating sentiment with stock prices for {len(by_symbol)} symbols...", flush=True)
     prices = await _fetch_prices(sorted({b["symbol"] for b in daily.values()}))
     # `period_row`, not `row`: `row` is already bound to a query Row earlier in
     # this function and rebinding it to a dict breaks the inferred type.
@@ -492,6 +514,10 @@ async def aggregate_symbols(symbol: str | None = None) -> dict[str, Any]:
                 round((last - first) / first * 100, 4) if first else None
             )
 
+    print(
+        f"[*] Committing {len(summaries)} stock summaries and {len(period_values)} period cards to main database...",
+        flush=True,
+    )
     async with SessionLocal() as app:
         if summaries:
             await app.execute(
@@ -635,11 +661,33 @@ async def _fetch_prices(symbols: list[str]) -> dict[str, dict[str, list[float]]]
     """First/last close per (symbol, period) — what the period cards store.
 
     One fetch per symbol, sliced four ways, rather than four fetches.
+    Concurrent with bounded concurrency (5) so 28+ symbols fetch in seconds.
     """
     today = datetime.now(UTC).date()
     out: dict[str, dict[str, list[float]]] = {}
-    for symbol in symbols:
-        closes = await _fetch_price_closes(symbol)
+    if not symbols:
+        return out
+
+    try:
+        from tqdm import tqdm
+        pbar = tqdm(total=len(symbols), desc="Fetching stock prices", unit="stock", dynamic_ncols=True)
+    except ImportError:
+        pbar = None
+
+    sem = asyncio.Semaphore(5)
+
+    async def _fetch_one(sym: str) -> tuple[str, dict[date, float]]:
+        async with sem:
+            res = await _fetch_price_closes(sym)
+            if pbar is not None:
+                pbar.update(1)
+            return sym, res
+
+    results = await asyncio.gather(*[_fetch_one(s) for s in symbols])
+    if pbar is not None:
+        pbar.close()
+
+    for symbol, closes in results:
         if not closes:
             continue
         by_period: dict[str, list[float]] = {}

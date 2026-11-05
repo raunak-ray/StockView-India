@@ -55,8 +55,8 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--batch-size",
         type=int,
-        default=32,
-        help="FinBERT inference batch size (default: 32; bigger = faster on CPU).",
+        default=64,
+        help="FinBERT inference batch size (default: 64; bigger = faster on CPU).",
     )
     parser.add_argument(
         "--log-level",
@@ -67,14 +67,16 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 async def _run(args: argparse.Namespace) -> int:
+    print("[*] Connecting to databases and verifying schema...")
     # Create tables if absent — idempotent, and lets --status work on a
     # database that has never been scored.
     await init_news_db()
     await init_db()
 
     if args.status or not (args.score or args.aggregate):
+        print("[*] Fetching corpus status...")
         status = await service.scoring_status()
-        print("── scoring status ──")
+        print("\n── scoring status ──")
         print(f"  articles total   : {status['articles_total']:,}")
         print(f"  articles scored  : {status['articles_scored']:,}")
         print(f"  articles pending : {status['articles_pending']:,}")
@@ -89,6 +91,9 @@ async def _run(args: argparse.Namespace) -> int:
     started = time.perf_counter()
 
     if args.score:
+        target_str = f" for {args.symbol.upper()}" if args.symbol else " across all stocks"
+        limit_str = f" (capped at {args.limit:,})" if args.limit else ""
+        print(f"\n[*] Starting FinBERT scoring{target_str}{limit_str} [batch size: {args.batch_size}]...")
         result = await service.score_pending(
             symbol=args.symbol, limit=args.limit, batch_size=args.batch_size
         )
@@ -100,6 +105,8 @@ async def _run(args: argparse.Namespace) -> int:
 
     aggregate = None
     if args.aggregate:
+        target_str = f" for {args.symbol.upper()}" if args.symbol else " across all stocks"
+        print(f"\n[*] Aggregating sentiment summaries & fetching price trends{target_str}...")
         aggregate = await service.aggregate_symbols(args.symbol)
         print("\n── aggregation ──")
         print(f"  symbols          : {aggregate['symbols']}")

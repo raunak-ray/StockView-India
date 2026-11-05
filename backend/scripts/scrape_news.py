@@ -89,7 +89,15 @@ async def _main(args: argparse.Namespace) -> int:
         print(f"error: --days must be between 1 and {MAX_DAYS}", file=sys.stderr)
         return 2
 
+    target = symbols_mod.by_symbol(args.symbol)
+    name = f" ({target.display_name})" if target else ""
+    print("[*] Connecting to news database and verifying schema...")
     await init_news_db()
+
+    print(f"[*] Starting crawl for {args.symbol.upper()}{name} over {args.days} days...")
+    print(f"[*] Safe rate pacing active (20 req/min)...")
+    if args.days > 30:
+        print(f"[*] 30-day checkpoints will be automatically committed as they complete.")
 
     try:
         stats = await scrape(symbol=args.symbol, days=args.days)

@@ -160,13 +160,22 @@ def _keyword_score(text: str) -> float:
 def _load_finbert():
     global _FINBERT_PIPE
     if _FINBERT_PIPE is None and FINBERT_OK:
+        # 1. Attempt offline load from disk cache first (avoids remote 404 probes & latency)
         try:
             _FINBERT_PIPE = hf_pipeline(
                 "sentiment-analysis", model="ProsusAI/finbert",
                 tokenizer="ProsusAI/finbert", truncation=True, max_length=512,
+                local_files_only=True,
             )
-        except Exception:  # noqa: BLE001 - model load is best-effort
-            _FINBERT_PIPE = None
+        except Exception:
+            # 2. Fallback: If not cached yet (e.g. fresh machine), download from Hub once
+            try:
+                _FINBERT_PIPE = hf_pipeline(
+                    "sentiment-analysis", model="ProsusAI/finbert",
+                    tokenizer="ProsusAI/finbert", truncation=True, max_length=512,
+                )
+            except Exception:  # noqa: BLE001 - model load is best-effort
+                _FINBERT_PIPE = None
     return _FINBERT_PIPE
 
 

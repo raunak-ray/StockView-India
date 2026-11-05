@@ -636,6 +636,11 @@ async def scrape(
             """Store and commit one chunk of already-filtered articles."""
             await store_articles(session, target, chunk, stats)
             await session.commit()
+            print(
+                f"  [*] Committed checkpoint for {target.symbol}: "
+                f"{stats.articles_new:,} new stored ({stats.duplicates:,} dupes, {stats.articles_seen:,} seen)",
+                flush=True,
+            )
             logger.info(
                 "news: %s checkpoint committed — %d new so far (%d seen)",
                 target.symbol,
@@ -731,11 +736,18 @@ async def scrape_all(
     logger.info("news: scrape_all refreshing %d symbols over %d days", len(symbols), days)
 
     aggregate = ScrapeStats(symbol="ALL")
-    for symbol in symbols:
+    for idx, symbol in enumerate(symbols, 1):
+        print(f"[{idx}/{len(symbols)}] Refreshing {symbol} ({days} days)...", flush=True)
         try:
             stats = await scrape(symbol=symbol, days=days, requests_per_second=requests_per_second)
+            print(
+                f"       -> Stored {stats.articles_new:,} new articles "
+                f"({stats.duplicates:,} duplicates, {stats.articles_seen:,} seen)",
+                flush=True,
+            )
         except (ValueError, ScrapeAborted) as exc:
             aggregate.errors += 1
+            print(f"       -> Skipped/Failed: {exc}", flush=True)
             logger.error("news: scrape_all failed for %s: %s", symbol, exc)
             continue
         aggregate.articles_seen += stats.articles_seen

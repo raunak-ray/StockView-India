@@ -50,7 +50,9 @@ async def _main(args: argparse.Namespace) -> int:
         print(f"error: --days must be between 1 and {MAX_DAYS}", file=sys.stderr)
         return 2
 
+    print("[*] Connecting to news database and verifying schema...")
     await init_news_db()
+    print(f"[*] Starting news refresh (look-back: {args.days} days per symbol)...")
 
     try:
         stats = await scrape_all(days=args.days)
